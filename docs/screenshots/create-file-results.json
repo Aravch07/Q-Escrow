@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "checks": [
+    "Known SHA-256 matches Node; replacing a file replaces the hash; selection sends no network POST",
+    "Remove clears both file and hash; an empty file receives the correct SHA-256",
+    "Signing is disabled while hashing; a late hash cannot replace a newer file or restore a removed file",
+    "Oversized files and hashing errors block signing; Remove file recovers the form",
+    "Optional, manual and automatically calculated fingerprints create signed terms correctly and reset after success",
+    "Creation submits only terms and hash; desktop, mobile and dark dialog captures fit; no JavaScript errors"
+  ],
+  "createdRecords": 3,
+  "consoleErrors": []
+}

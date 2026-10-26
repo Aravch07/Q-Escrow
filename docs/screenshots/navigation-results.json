@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "checks": [
+    "All ten signed-in views fit light desktop, 390px mobile and dark appearances",
+    "Advanced signatures, signed terms and bundle download remain reachable through expandable evidence"
+  ],
+  "consoleErrors": []
+}

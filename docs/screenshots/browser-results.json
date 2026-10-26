@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "checks": [
+    "Light finance design overrides legacy dark preference and dark device appearance on first visit",
+    "Creation hashes a local expected file and binds its SHA-256 to signed terms; file selection resets after creation",
+    "Wrong delivery is blocked before browser signing and rejected by the server without saving; correct-file retry remains available",
+    "Alice created; Bob countersigned and uploaded; Alice released offline and settled online",
+    "Counterparty settlement mirrored; Bob claimed exactly 1 ETH",
+    "All ten signed-in views captured at 1440px light, 390px mobile, and 1440px dark; no document overflow",
+    "Explicit appearance selection persists after reloading",
+    "Agreement search, status filters, focus retention, theme switch, refresh, and dialog cancellation passed",
+    "Browser-local file hashing and signed bundle verification worked",
+    "All five isolated attack lab experiments blocked",
+    "Password visibility control passed",
+    "New account registered; short password blocked; sign out worked",
+    "12 consecutive browser login and logout cycles passed"
+  ],
+  "consoleErrors": [],
+  "externalRequests": [],
+  "screenshots": 57
+}

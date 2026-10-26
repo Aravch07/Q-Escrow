@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "checks": [
+    "Fresh account runs all five real experiments; numeric controls affect changes and attempt traces; invalid settings recover",
+    "Before/after values and failed verification checks are inspectable; real ledger and audit are unchanged",
+    "Mobile and dark results fit; Reset results clears results; time presets change the input without advancing the clock",
+    "Leaving during an experiment safely ignores its late response; returning to the lab can run again",
+    "A selected real delivery supports file/signature/price experiments without altering its signed bundle"
+  ],
+  "consoleErrors": []
+}

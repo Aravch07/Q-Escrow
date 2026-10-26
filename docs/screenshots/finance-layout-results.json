@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "checks": [
+    "Legacy dark preference and dark device migrate once to light",
+    "Empty overview fits 320, 390, 768 and 1024px viewports",
+    "Tools marks advanced pages active; primary destinations stay visible at all four widths",
+    "Mobile creation dialog fits the viewport and closes with Escape",
+    "Mobile search and clear filters work on an empty account"
+  ]
+}

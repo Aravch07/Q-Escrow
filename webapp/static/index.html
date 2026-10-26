@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="PQ-Escrow: offline agreements, post-quantum signatures, accountable settlement. Local test demonstration.">
+  <title>PQ-Escrow · Agreements with evidence</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div id="app"><main id="main"><p class="loading">Opening your local escrow desk…</p></main></div>
+  <div id="toasts" role="status" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <p class="eyebrow">Your signature is a commitment</p>
+      <h2 id="confirm-title">Confirm signature</h2>
+      <p id="confirm-body"></p>
+      <p class="muted">The server will use your unlocked ML-DSA key. Signed artifacts cannot be edited.</p>
+      <div class="actions"><button value="cancel" class="secondary">Cancel</button><button value="confirm">Confirm and sign</button></div>
+    </form>
+  </dialog>
+  <dialog id="create-dialog" aria-labelledby="create-title">
+    <form id="create-form" novalidate>
+      <p class="eyebrow">New agreement</p><h2 id="create-title">Create an escrow</h2>
+      <ol class="create-progress" aria-label="Create escrow progress"><li data-create-marker="1" aria-current="step"><span>1</span>Details</li><li data-create-marker="2"><span>2</span>File check</li><li data-create-marker="3"><span>3</span>Review</li></ol>
+      <section data-create-step="1" aria-labelledby="create-step-one">
+      <h3 id="create-step-one" tabindex="-1">Agree on the details</h3><p class="step-intro">You’re the buyer. Choose who will deliver the work and what you’ll pay.</p>
+      <label for="seller">Seller</label><select id="seller" name="seller" required></select>
+      <div class="form-grid"><div><label for="amount">Amount in test ETH</label><input id="amount" name="amount" inputmode="decimal" value="1" required></div>
+      <div><label for="hours">Expires in hours</label><input id="hours" name="hours" type="number" min="1" max="168" value="24" required></div></div>
+      <label for="description">What will be delivered?</label><textarea id="description" name="description" placeholder="Describe the file and what you expect to receive." rows="3" maxlength="2000" required></textarea>
+      </section>
+      <section data-create-step="2" aria-labelledby="create-step-two" hidden>
+      <h3 id="create-step-two" tabindex="-1">Check the expected file</h3><p class="step-intro">Have the exact file you expect? Add it here so a different file will be blocked. You can also continue without one and review the delivery yourself.</p>
+      <fieldset class="expected-file-field">
+        <legend>Expected file <span class="muted">(optional)</span></legend>
+        <p id="expected-file-help">Choose the exact file you expect the seller to deliver. We’ll calculate its fingerprint here; the file stays on your device.</p>
+        <label for="expected-file" class="sr-only">Choose expected file</label>
+        <input id="expected-file" type="file" aria-describedby="expected-file-help expected-file-status">
+        <div class="expected-file-selection"><span id="expected-file-name"></span><button type="button" class="ghost" data-action="clear-expected-file" id="clear-expected-file" hidden>Remove file</button></div>
+        <details id="manual-fingerprint" class="manual-fingerprint"><summary>View or enter a fingerprint</summary><label for="expected">Agreed file fingerprint (SHA-256)</label>
+        <input id="expected" name="expected" class="hash" pattern="[0-9a-f]{64}" placeholder="Select a file above, or paste a fingerprint" aria-describedby="expected-file-status">
+        </details>
+        <p id="expected-file-status" class="fine" role="status" aria-live="polite"></p>
+      </fieldset>
+      </section>
+      <section data-create-step="3" aria-labelledby="create-step-three" hidden><h3 id="create-step-three" tabindex="-1">Everything look right?</h3><p class="step-intro">Check the agreement before adding your signature. The seller will sign it next.</p><div id="create-review-summary"></div><p class="fine">This creates a signed promise. Funds are checked when you finish the payment and are not reserved for this agreement.</p></section>
+      <p id="create-error" role="alert" class="error"></p>
+      <div class="actions create-actions"><button type="button" data-action="close-create" class="ghost">Cancel</button><button type="button" id="create-back" data-action="create-back" class="secondary" hidden>Back</button><button type="button" id="create-next" data-action="create-next">Continue to file check</button><button type="button" id="create-review" data-action="create-next" hidden>Review agreement</button><button type="submit" id="create-submit" hidden>Review and sign terms</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

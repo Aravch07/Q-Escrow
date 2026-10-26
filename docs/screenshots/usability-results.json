@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "checks": [
+    "Four primary destinations; getting-started guide dismisses, persists and reopens; buyer/seller help supports keyboard tabs",
+    "Tools menu fits 320–1440px, closes with Escape and restores focus; Settings keeps preferences visible and technical identity collapsed",
+    "Three-step creation validates, preserves the draft on Back/Cancel, computes the file fingerprint and signs only after review",
+    "Funding guidance opens Wallet without losing the draft; friendly lock presets and custom durations work; creation uses the original fingerprint",
+    "Four-stage agreement progress, role-specific waiting action and collapsed evidence keep the main view focused"
+  ],
+  "consoleErrors": []
+}
