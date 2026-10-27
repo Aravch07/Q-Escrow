@@ -35,7 +35,7 @@ const artifact=require('../build/PQEscrow.json');
  await (await c.connect(buyer).withdraw(E,{gasLimit:100000})).wait();assert.equal((await c.accounts(ba)).balance,0n);passed.push('Withdraw succeeds after unlock');
  await blocked('Unauthorized relayer administration',()=>c.connect(outsider).setRelayer(sa,true));
  await (await c.setRelayer(sa,true)).wait();assert.equal(await c.relayers(sa),true);passed.push('Owner can authorize relayer');
- const fs=require('node:fs'),path=require('node:path'),solc=require('solc');
+ const fs=require('node:fs'),path=require('node:path'),solc=require(process.env.PQE_SOLC||'solc');
  const source=fs.readFileSync(path.resolve(__dirname,'../contracts/test/ReentrantReceiver.sol'),'utf8');
  const compiled=JSON.parse(solc.compile(JSON.stringify({language:'Solidity',sources:{'Receiver.sol':{content:source}},settings:{evmVersion:'paris',outputSelection:{'*':{'*':['abi','evm.bytecode.object']}}}})));
  const receiverSpec=compiled.contracts['Receiver.sol'].ReentrantReceiver;

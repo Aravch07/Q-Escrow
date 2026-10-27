@@ -1,5 +1,6 @@
 """Local SQLite state and a hash-chained audit trail (not an external trust anchor)."""
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -61,11 +62,21 @@ class Store:
             row = db.execute("SELECT body FROM records WHERE id=?", (escrow_id,)).fetchone()
         if not row:
             raise ValueError("Escrow not found")
-        return Record(**json.loads(row[0]))
+        return self._record(row[0])
+
+    def _record(self, body):
+        record = Record(**json.loads(body))
+        if record.payload_path:
+            if not re.fullmatch(r"[0-9a-f]{64}", record.escrow_id):
+                raise ValueError("Invalid escrow ID in saved record")
+            # Payloads belong to this vault, including after a folder copy or move.
+            # Never fall back to a saved absolute path in another workspace.
+            record.payload_path = str((self.vault / record.escrow_id / "payload").resolve())
+        return record
 
     def all(self):
         with self.connect() as db:
-            return [Record(**json.loads(r[0])) for r in db.execute("SELECT body FROM records ORDER BY id")]
+            return [self._record(r[0]) for r in db.execute("SELECT body FROM records ORDER BY id")]
 
     def next_seq(self, buyer_key_hash):
         with self.lock, self.connect() as db:

@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "engine": "Ganache in-process EVM",
+  "checks": [
+    "Minimum deposit lock",
+    "Key cannot be replaced",
+    "Withdraw blocked while locked",
+    "Only relayer can settle",
+    "Wrong key rejected",
+    "Insufficient balance rejected",
+    "Release and evidence anchor",
+    "Escrow replay rejected",
+    "Sequence double spend rejected",
+    "Seller claim including exact gas cost",
+    "Refund consumes sequence without debiting balance",
+    "Withdraw succeeds after unlock",
+    "Unauthorized relayer administration",
+    "Owner can authorize relayer",
+    "Withdraw reentry blocked with unlocked funds remaining",
+    "Claim-to-withdraw cross-function reentry blocked"
+  ]
+}

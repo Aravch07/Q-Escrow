@@ -1,5 +1,17 @@
 # Local web application
 
+On Windows, double-click `start_web.bat`. It selects the project environment,
+prepares the bundled offline runtime if needed, and opens port **8766**.
+Keep the launcher window open. A connection error on sign-in names the address
+and explains how to restart; it does not mean the credentials were rejected.
+The direct Python command below retains its normal port 8765.
+
+Copied or moved workspaces resolve delivered files inside their own vault.
+Saved absolute paths from an older location are not used as a fallback.
+On Windows each server owns its port exclusively; starting a second instance on
+the same port produces a readable startup message. Closed tabs and interrupted
+browser connections do not trigger a second error response.
+
 Run from the project root in PowerShell:
 
 ```powershell

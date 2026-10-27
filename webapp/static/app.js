@@ -51,7 +51,9 @@ else applyTheme(localStorage.getItem('pqe-theme') || 'light');
 async function api(route, data, options={}) {
   const headers={}; let body;
   if(data!==undefined) { headers['X-Requested-With']='PQEscrow'; if(options.raw){body=data; Object.assign(headers,options.headers||{});}else{headers['Content-Type']='application/json';body=JSON.stringify(data);} }
-  const response=await fetch('/api/'+route,{method:data===undefined?'GET':'POST',headers,body,credentials:'same-origin'});
+  let response;
+  try{response=await fetch('/api/'+route,{method:data===undefined?'GET':'POST',headers,body,credentials:'same-origin'});}
+  catch{const error=Error(`Cannot reach PQ-Escrow at ${location.origin}. Open the project folder, double-click start_web.bat and keep its window open. Then open the address printed in that window and try again.`);error.status=0;throw error;}
   const result=await response.json();
   if(!response.ok){const error=Error(result.error||'Request failed');error.status=response.status;throw error;}
   return result;
@@ -242,7 +244,7 @@ function settings(){
 
 async function render() {
  const version=++renderVersion;
- try {me=await api('me');}catch(error){if(version===renderVersion){authPage();if(error.message.includes('unlock'))toast(error.message);}return;}
+ try {me=await api('me');}catch(error){if(version===renderVersion){authPage();if(error.status===0)$('#auth-error').textContent=error.message;else if(error.message.includes('unlock'))toast(error.message);}return;}
  if(version!==renderVersion)return;
  shell();const activeNav=$('.primary-nav [aria-current="page"]');if(activeNav)activeNav.scrollIntoView({block:'nearest',inline:'nearest'});const path=location.hash.slice(1)||'overview';const [page,id]=path.split('/');
  try {

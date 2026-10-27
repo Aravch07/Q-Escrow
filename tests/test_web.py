@@ -8,9 +8,35 @@ from pathlib import Path
 import pytest
 from escrow.chain import ETH
 from escrow.crypto import b64, canonical_json, sha256_bytes, unb64
-from webapp.server import App, Server
+from webapp.server import App, Handler, Server
 from webapp.security import seal, unseal
 from conftest import legacy_delivery
+
+
+@pytest.mark.parametrize("failure", [BrokenPipeError, ConnectionResetError, ConnectionAbortedError])
+@pytest.mark.parametrize("stage", ["headers", "body", "request"])
+def test_disconnected_browser_is_not_retried_as_bad_request(monkeypatch, failure, stage):
+    handler = object.__new__(Handler)
+    sent = []
+
+    def disconnect(*args, **kwargs):
+        raise failure("Browser closed the connection")
+
+    if stage == "request":
+        handler.path = "/api/me"
+        handler.headers = {}
+        handler.server = type("TestServer", (), {"app": type("TestApp", (), {"lock": threading.RLock()})()})()
+        handler.api = disconnect
+        handler.send = lambda *args, **kwargs: sent.append(args)
+        handler.dispatch(False)
+        assert sent == []
+    else:
+        handler.send_response = lambda *args: sent.append(args[0])
+        handler.send_header = lambda *args: None
+        handler.end_headers = disconnect if stage == "headers" else lambda: None
+        handler.wfile = type("ClosedStream", (), {"write": staticmethod(disconnect)})()
+        handler.send(200, {"ok": True})
+        assert sent == [200]
 
 
 class Client:

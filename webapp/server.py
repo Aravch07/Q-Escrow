@@ -1,6 +1,8 @@
 import json
 import logging
+import os
 import re
+import socket
 import tempfile
 import threading
 import time
@@ -133,8 +135,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         for key, value in (headers or {}).items():
             self.send_header(key, value)
-        self.end_headers()
-        self.wfile.write(raw)
+        try:
+            self.end_headers()
+            self.wfile.write(raw)
+        except ConnectionError:
+            # Navigation or a closed tab can disconnect before the response.
+            pass
 
     def token(self):
         try:
@@ -203,12 +209,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (STATIC / file).read_bytes(), mime)
             with self.app.lock:
                 return self.api(path[5:], post)
+        except ConnectionError:
+            pass
         except HTTPError as exc:
             self.send(exc.status, {"error": exc.message})
         except (ValueError, KeyError, TypeError, OverflowError, OSError) as exc:
             self.send(400, {"error": str(exc) or "Invalid request; check the fields and try again"})
-        except (BrokenPipeError, ConnectionResetError):
-            pass
         except Exception:
             logging.exception("Request failed")
             self.send(500, {"error": "The request could not be completed; check the server log"})
@@ -354,7 +360,13 @@ class Handler(BaseHTTPRequestHandler):
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt":
+            # Windows SO_REUSEADDR permits two processes to share a listener.
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
     def __init__(self, address, app):
         self.app = app

@@ -10,6 +10,19 @@ The workflow is deliberately ordered:
 
 ## Quick start — Windows PowerShell, Python 3.13
 
+On Windows, you can double-click **start_web.bat** in the project folder.
+It uses the project's Python environment (including the earlier copied layout),
+or prepares one with the bundled offline dependencies on the first run.
+Keep its window open while using the app at http://127.0.0.1:8766.
+If the port is already in use, open the running app or select another port:
+`.\start_web.bat --port 8767`.
+
+“Cannot reach PQ-Escrow” means the local server is stopped or you opened a
+different address. Start the launcher and use the address it prints. This is
+different from “Username or password is incorrect.” Demo accounts use
+`alice`, `bob`, or `carol`, with password `demo1234`; existing changed passwords
+are preserved. Open the web address rather than the HTML file directly.
+
 Get the project from [GitHub](https://github.com/Aravch07/Q-Escrow) and start it:
 
 ```powershell

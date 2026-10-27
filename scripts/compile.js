@@ -1,7 +1,7 @@
 /* solc-js only. Once npm dependencies are installed, compilation is offline. */
 const fs = require('node:fs');
 const path = require('node:path');
-const solc = require('solc');
+const solc = require(process.env.PQE_SOLC || 'solc');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'contracts/PQEscrow.sol'), 'utf8');
 const input = {language:'Solidity', sources:{'PQEscrow.sol':{content:source}}, settings:{

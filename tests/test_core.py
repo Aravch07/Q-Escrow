@@ -1,5 +1,6 @@
 import copy
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 import pytest
@@ -25,6 +26,38 @@ def test_happy_path_and_evidence(world):
     assert chain.settlement(r.escrow_id)['note']=='release'
     assert chain.claim(b.identity.evm_address)==ETH
     assert a.store.verify_log()
+
+
+def test_copied_store_uses_its_own_payloads(world, tmp_path):
+    a, b, _, _, _ = world
+    record = happy(a, b)
+    bundle = export_bundle(record)
+    audit = a.store.audit()
+    copied_root = tmp_path / "Desktop copy" / "alice"
+    shutil.copytree(a.store.root, copied_root)
+    copied_store = Store(copied_root)
+    # The old workspace must have no influence on a copied delivery.
+    Path(record.payload_path).write_bytes(b"old workspace changed")
+    copied = copied_store.get(record.escrow_id)
+    assert Path(copied.payload_path) == (copied_store.vault / record.escrow_id / "payload").resolve()
+    assert export_bundle(copied) == bundle
+    assert verify_offline(copied, a.now()).outcome == "RELEASE"
+    assert copied_store.all()[0].payload_path == copied.payload_path
+    assert copied_store.audit() == audit and copied_store.verify_log()
+
+
+def test_copied_store_never_falls_back_to_old_payload(world, tmp_path):
+    a, b, _, _, _ = world
+    record = happy(a, b)
+    copied_root = tmp_path / "copied-alice"
+    shutil.copytree(a.store.root, copied_root)
+    copied_store = Store(copied_root)
+    (copied_store.vault / record.escrow_id / "payload").unlink()
+    assert Path(record.payload_path).is_file()
+    copied = copied_store.get(record.escrow_id)
+    assert verify_offline(copied, a.now()).outcome == "REJECT"
+    with pytest.raises(FileNotFoundError):
+        export_bundle(copied)
 
 
 @pytest.mark.parametrize('purpose',['buyer','seller','delivery','acceptance'])

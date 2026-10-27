@@ -1,5 +1,11 @@
 # Executed verification
 
+The **27 October 2026** Desktop startup, login, copied-file and Windows network
+checks are recorded in [DESKTOP-CHECK.md](DESKTOP-CHECK.md).
+The final full Python run passed **83 tests**, with **7 optional EVM skips**, in
+**131.49 seconds**. All three saved Desktop demo logins and the complete browser
+payment flow passed; Solidity compilation and all **16 Ganache checks** passed.
+
 Core verification on **25 October 2026**; finance interface verification on
 **26 October 2026**, Windows, Microsoft Store Python **3.13.14**.
 This report distinguishes the checks that executed from the optional Python EVM

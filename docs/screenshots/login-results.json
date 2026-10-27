@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "checks": [
+    "alice signs in, loads the matching workspace and signs out",
+    "bob signs in, loads the matching workspace and signs out",
+    "carol signs in, loads the matching workspace and signs out",
+    "Connection loss during sign-in explains how to restart; keeps the form usable and recovers without reload",
+    "Unavailable initial session shows recovery instructions; incorrect password remains a distinct error and correct retry works"
+  ],
+  "consoleErrors": []
+}
