@@ -1,5 +1,10 @@
 # Executed verification
 
+The **28 October 2026** online release is recorded in
+[HOSTED-VERIFICATION.md](HOSTED-VERIFICATION.md): 91 executed Python checks,
+a public Vercel buyer/seller flow with a 25 MiB file, and independent hosted
+navigation and Attack lab checks.
+
 The **27 October 2026** Desktop startup, login, copied-file and Windows network
 checks are recorded in [DESKTOP-CHECK.md](DESKTOP-CHECK.md).
 The final full Python run passed **83 tests**, with **7 optional EVM skips**, in

@@ -14,7 +14,7 @@ set "PQE_PYTHON=.venv\Scripts\python.exe"
 "%PQE_PYTHON%" -c "from webapp.server import App, Server" >nul 2>&1
 if not errorlevel 1 goto start_app
 echo Installing the included offline dependencies...
-"%PQE_PYTHON%" -m pip install --no-index --find-links wheelhouse -r requirements.txt
+"%PQE_PYTHON%" -m pip install --no-index --find-links wheelhouse -r requirements-core.txt
 if errorlevel 1 goto setup_failed
 
 :start_app

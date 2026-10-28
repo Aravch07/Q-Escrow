@@ -75,7 +75,7 @@ class App:
             raise HTTPError(403, "Only the buyer and seller may access this escrow")
         return r
 
-    def detail(self, party, r):
+    def detail(self, party, r, include_payload=True):
         verdict = verify_offline(r, self.now())
         t = r.terms
         onchain = self.chain.account(t["buyer"]["evm_address"])
@@ -100,7 +100,7 @@ class App:
         return dict(escrow_id=r.escrow_id, terms=t, state=r.state, role="buyer" if t["buyer"]["name"] == party.identity.name else "seller",
                     delivery=r.delivery, acceptance=r.acceptance, settlement=r.settlement, rejection=r.rejection,
                     verification=verdict.asdict(), checks=checks, seals=seals, now=self.now(),
-                    activity=[x for x in party.store.audit() if x["escrow_id"] == r.escrow_id], bundle=export_bundle(r))
+                    activity=[x for x in party.store.audit() if x["escrow_id"] == r.escrow_id], bundle=export_bundle(r) if include_payload else r.bundle(include_payload=False))
 
     def chain_required(self, username):
         if not self.accounts.online(username):
@@ -202,6 +202,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise HTTPError(404, "Endpoint not found")
                 assets = {"/": ("index.html", "text/html; charset=utf-8"),
                           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+                          "/hosted.js": ("hosted.js", "text/javascript; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8")}
                 if path not in assets:
                     raise HTTPError(404, "Page not found")
@@ -221,6 +222,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def api(self, route, post):
         a = self.app.accounts
+        if route == "config" and not post:
+            return self.send(200, {"hosted": False, "demo": True, "max_file_size": MAX_PAYLOAD})
         if route in ("register", "login") and post:
             data = self.body()
             if route == "register":

@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "checks": [
+    "overview loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "escrows loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "wallet loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "activity loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "verify loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "ledger loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "lab loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "settings loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "help loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "inbox loaded its own heading and fit 320, 390, 768 and 1440 pixels",
+    "Live lab controls change traces; all five experiments block attacks; real ledger/audit stay unchanged; Reset and mobile dark work"
+  ],
+  "consoleErrors": []
+}

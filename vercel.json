@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "flask",
+  "regions": ["sin1"],
+  "functions": {
+    "app.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{tests/**,docs/**,wheelhouse/**,data/**,pq-escrow-clean/**,.venv*/**,node_modules/**,.agents/**,.claude/**}"
+    }
+  }
+}

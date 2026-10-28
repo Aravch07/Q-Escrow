@@ -1,0 +1,13 @@
+data
+pq-escrow-clean
+.venv*
+__pycache__
+.pytest_cache
+docs/screenshots
+wheelhouse
+tests
+.env*
+.agents
+.claude
+node_modules
+*.log

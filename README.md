@@ -4,6 +4,12 @@ Offline agreements, ML-DSA-65 authentication, and evidence-based EVM settlement.
 This is a working local demonstration with **test funds only**. It is not an
 audited payment service. Ethereum accounts themselves are not post-quantum.
 
+**Live hosted workspace:** [pq-escrow.vercel.app](https://pq-escrow.vercel.app).
+Choose **Create account** to register. Hosted accounts and agreements persist
+online; your Desktop accounts remain separate. The live version adds profiles,
+session controls, an inbox, private notes, exports and large-file transfers.
+See [hosting and configuration](docs/HOSTING.md). Both editions use test funds.
+
 The workflow is deliberately ordered:
 
 **Create escrow → Authenticate → Deliver and hash → Operate offline → Verify and reconcile → Blockchain settlement**
@@ -51,8 +57,10 @@ for the two parties. Each seed account receives 10 test ETH; Alice deposits 5 of
 her 10 into the ledger, leaving 5 in her test wallet. New accounts also receive
 10 simulated ETH for demonstrations. No cryptocurrency is created or transferred.
 
-Only `dilithium-py` is a runtime dependency. `pytest` and its dependencies are for
-tests. The core and web server do not import web3, Playwright, or Node packages.
+Only `dilithium-py` is a Desktop runtime dependency. `pytest` and its dependencies are for
+tests. The hosted runtime additionally uses Flask, psycopg and cryptography.
+The Desktop core and web server do not import these hosted packages, web3,
+Playwright, or Node packages.
 No activation script or `py` launcher is needed. No C++ build tools are needed.
 
 The bundled `wheelhouse/` supports an entirely offline installation of the core
@@ -158,8 +166,10 @@ tests/                  protocol, HTTP, and optional web3/PyEVM tests
 scripts/                demo, deploy, compile, browser and contract QA, offline setup
 docs/                   architecture, web API, verification report, screenshots
 wheelhouse/             offline core/test wheels (no EVM or browser dependencies)
-requirements.txt        dilithium-py only
-requirements-dev.txt    runtime dependency and pytest
+requirements.txt        hosted runtime (Flask, Postgres, cryptography)
+requirements-core.txt   dilithium-py only; offline Desktop runtime
+requirements-dev.txt    Desktop runtime and pytest
+requirements-cloud-dev.txt hosted runtime and integration-test tools
 package.json            solc-js compiler only
 start_web.bat           Windows convenience launcher
 Makefile                optional shortcuts

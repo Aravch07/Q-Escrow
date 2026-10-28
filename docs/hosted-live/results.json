@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "checks": [
+    "New users register with confirmed passwords; shared demo logins are absent; personal workspaces load",
+    "25 MiB file hashes automatically; wrong file is blocked; delivery uploads in parts of at most 1 MiB",
+    "Private notes stay private; chunked download matches the SHA-256; offline approval, online settlement and exact seller claim work",
+    "Large signed bundle exports with its payload and verifies through chunked upload",
+    "Role and amount filters, CSV export, activity inbox and read state work",
+    "Profile persists and an active user can revoke another browser session",
+    "All ten hosted pages fit mobile and desktop; shared-clock controls are unavailable; dark appearance renders"
+  ],
+  "consoleErrors": [],
+  "fileSizeBytes": 26214400
+}

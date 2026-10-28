@@ -9,6 +9,7 @@ function wei(value) { if(!/^\d+(\.\d{1,18})?$/.test(value)) throw Error('Enter a
 const statusLabels={PROPOSED:'Awaiting signature',LOCKED:'Ready for delivery',DELIVERED:'Review delivery',ACCEPTED:'Ready to settle',SETTLED:'Settled',REJECTED:'Needs review'};
 const badge = state => `<span class="badge ${esc(state.toLowerCase())}"><span class="status-dot"></span>${esc(statusLabels[state]||state.toLowerCase())}</span>`;
 let me=null, currentDetail=null, detailTab='checks', authMode='login', renderVersion=0;
+let runtime={hosted:location.protocol==='https:',chunk_size:1048576};
 const navItems=[['overview','◈','Overview'],['escrows','▤','Escrows'],['wallet','◇','Wallet'],['ledger','≋','Ledger'],['verify','✓','Verify'],['lab','⌁','Attack lab'],['activity','◷','Activity'],['settings','⚙','Settings and keys']];
 
 const shapes={
@@ -53,7 +54,7 @@ async function api(route, data, options={}) {
   if(data!==undefined) { headers['X-Requested-With']='PQEscrow'; if(options.raw){body=data; Object.assign(headers,options.headers||{});}else{headers['Content-Type']='application/json';body=JSON.stringify(data);} }
   let response;
   try{response=await fetch('/api/'+route,{method:data===undefined?'GET':'POST',headers,body,credentials:'same-origin'});}
-  catch{const error=Error(`Cannot reach PQ-Escrow at ${location.origin}. Open the project folder, double-click start_web.bat and keep its window open. Then open the address printed in that window and try again.`);error.status=0;throw error;}
+  catch{const error=Error(runtime.hosted||location.protocol==='https:'?'Your connection was interrupted. Check your internet connection and try again.':`Cannot reach PQ-Escrow at ${location.origin}. Open the project folder, double-click start_web.bat and keep its window open. Then open the address printed in that window and try again.`);error.status=0;throw error;}
   const result=await response.json();
   if(!response.ok){const error=Error(result.error||'Request failed');error.status=response.status;throw error;}
   return result;
@@ -371,7 +372,7 @@ document.addEventListener('submit',async event=>{
  try {
   if(form.id==='auth-form'){
    $('#auth-error').textContent='';const creds={username:data.get('username'),password:data.get('password')};
-   if(authMode==='register')await api('register',creds);
+   if(authMode==='register'){if(runtime.hosted&&data.get('confirm_password')!==creds.password)throw Error('Your passwords do not match.');if(runtime.hosted)creds.display_name=data.get('display_name')||'';await api('register',creds);}
    await api('login',creds);authMode='login';location.hash='overview';await render();return;
   }
   if(form.id==='create-form'){
@@ -387,13 +388,13 @@ document.addEventListener('submit',async event=>{
    const file=data.get('file');if(!file||file.size>25*1024*1024)throw Error('Choose a file up to 25 MB');
    if(currentDetail.terms.expected_sha256&&await fileFingerprint(file)!==currentDetail.terms.expected_sha256)throw Error('This file does not match the agreed fingerprint. No delivery was saved.');
    if(!await confirmSign('Sign the delivery receipt?',`Deliver ${file.name} (${file.size} bytes). Its SHA-256, size, name, and delivery time will be signed.`))return;
-   await api('escrows/'+form.dataset.id+'/deliver',await file.arrayBuffer(),{raw:true,headers:{'X-Filename':encodeURIComponent(file.name)}});toast('Delivery signed and sent to the buyer.');await render();return;
+   if(runtime.hosted){const upload=await uploadParts(file,'delivery',form.dataset.id,percent=>transferProgress('Uploading delivery',percent));await api('escrows/'+form.dataset.id+'/deliver-upload',{upload_id:upload});}else await api('escrows/'+form.dataset.id+'/deliver',await file.arrayBuffer(),{raw:true,headers:{'X-Filename':encodeURIComponent(file.name)}});toast('Delivery signed and sent to the buyer.');await render();return;
   }
   if(form.id==='deposit-form'||form.id==='withdraw-form'){
    await api(form.id==='deposit-form'?'wallet/deposit':'withdraw',{amount_wei:wei(data.get('amount')),lock_seconds:Number(data.get('lock'))});toast(form.id==='deposit-form'?'Test funds deposited and time-locked.':'Unlocked funds withdrawn.');await render();return;
   }
   if(form.id==='verify-bundle-form'){
-   const file=data.get('file');if(file.size>36*1024*1024)throw Error('Bundle exceeds 36 MB');const result=await api('verify-bundle',{bundle:JSON.parse(await file.text())});$('#bundle-result').innerHTML=`<div class="result"><strong>${esc(result.outcome)}</strong><p>${esc(result.reason)}</p>${renderChecks(result.checks)}</div>`;return;
+   const file=data.get('file');if(file.size>36*1024*1024)throw Error('Bundle exceeds 36 MB');const result=runtime.hosted?await api('verify-upload',{upload_id:await uploadParts(file,'verify',null,percent=>transferProgress('Uploading evidence',percent))}):await api('verify-bundle',{bundle:JSON.parse(await file.text())});$('#bundle-result').innerHTML=`<div class="result"><strong>${esc(result.outcome)}</strong><p>${esc(result.reason)}</p>${renderChecks(result.checks)}</div>`;return;
   }
   if(form.id==='verify-file-form'){
    const file=data.get('file');const hash=await fileFingerprint(file);$('#file-result').innerHTML=`<div class="result"><strong>${esc(file.name)}</strong><p>${file.size} bytes · computed in this browser</p><p class="hash">${hash}</p></div>`;return;
@@ -405,14 +406,14 @@ document.addEventListener('submit',async event=>{
   else if(form.id==='create-form')$('#create-error').textContent=error.message;
   else if(form.id==='verify-bundle-form')$('#bundle-result').innerHTML=`<div class="notice bad spacer" role="alert">${esc(error.message)}</div>`;
   else toast(error.message,true);
- }finally{if(form.id==='create-form')syncCreateButtons();else if(submit)submit.disabled=false;}
+ }finally{if(runtime.hosted)document.querySelector('.transfer-toast')?.remove();if(form.id==='create-form')syncCreateButtons();else if(submit)submit.disabled=false;}
 });
 document.addEventListener('change',event=>{if(event.target.id==='theme-select')applyTheme(event.target.value);if(event.target.id==='lock-preset'){const custom=event.target.value==='custom';$('#custom-lock').open=custom;if(!custom)$('#lock-seconds').value=event.target.value;else $('#lock-seconds').focus();}if(event.target.id==='lock-seconds')$('#lock-preset').value='custom';if(event.target.id==='expected-file')hashExpectedFile();if(event.target.id==='delivery-file')checkDeliveryFile();if(event.target.id==='lab-record'||event.target.closest('.lab-parameter'))resetLabResults();});
 document.addEventListener('reset',event=>{if(event.target.id==='create-form'){clearExpectedFile();$('#manual-fingerprint').open=false;showCreateStep(1,false);}});
 document.addEventListener('keydown',event=>{const tab=event.target.closest('[role="tab"]');if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=Array.from(tab.parentElement.querySelectorAll('[role="tab"]'));let i=tabs.indexOf(tab);i=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;event.preventDefault();tabs[i].focus();tabs[i].click();});
 function setupDropzone(){++deliveryFileVersion;const zone=$('#dropzone');if(!zone)return;zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag');if(e.dataTransfer.files.length){$('#delivery-file').files=e.dataTransfer.files;checkDeliveryFile();}});}
 addEventListener('hashchange',async()=>{detailTab='checks';await render();scrollTo(0,0);$('#main')?.focus({preventScroll:true});});
-render();
+// hosted.js loads runtime capabilities, then opens the shared interface.
 
 document.addEventListener('input',event=>{if(event.target.id==='escrow-search'){escrowQuery=event.target.value;updateEscrowResults();}});
 
