@@ -36,3 +36,28 @@ using the same hosted database service; the final separate run passed.
 
 Sample screenshots and machine-readable results are in `docs/prototype-checks/`.
 These checks establish an educational prototype, not a real-money custody audit.
+
+## Public production verification
+
+Vercel deployed application commit `c2282380dadc8278e60eda8707087e3c33f9b352`
+from GitHub `main` to `https://pq-escrow.vercel.app`, with state **READY** and
+the production alias assigned. The old release remains available on the rollback
+branch documented in `PROTOTYPE.md`.
+
+Both browser suites then passed against that public address:
+
+- The real account workflow repeated registration, 1 MiB reference hashing,
+  wrong-file rejection, delivery/download with matching SHA-256, offline decision,
+  settlement, claim, signed-bundle verification, private notes, CSV, inbox,
+  profiles and session revocation. No browser JavaScript errors occurred.
+- The public demo passed its tour and destination highlight, wizard, exact
+  statistics, chart controls, CSV and appearance checks across all four viewport
+  widths. No server POSTs or browser JavaScript errors occurred. Image readiness
+  is awaited explicitly so the screenshot check also covers assets loading over
+  the public network.
+
+Machine-readable results: `public-workflow-results.json` and
+`public-demo-results.json` in `docs/prototype-checks/`.
+The temporary local servers and isolated browser-test schema were removed.
+Desktop/source copies and the ZIP include the release; local user data was
+preserved and deployment secrets were excluded.

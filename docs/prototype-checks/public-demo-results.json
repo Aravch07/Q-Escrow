@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "checks": [
+    "One-click labelled sample workspace loads without credentials; real artwork/fonts load; the five-step walkthrough completes",
+    "Analytics exactly matches the sample records: 10 total, 7 buying, 4.1 ETH released overall, 3.45 buying; range/role/measure controls, keyboard tooltips and CSV work",
+    "Sample wizard is interactive but cannot sign or mutate server data; payment toggle stays in memory; no POST requests are sent",
+    "All ten demo destinations fit 320, 390, 768 and 1440 pixels",
+    "Obsidian/Frost appearance controls and accent persistence work; charts resize on mobile"
+  ],
+  "consoleErrors": [],
+  "serverPosts": []
+}
