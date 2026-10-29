@@ -88,3 +88,12 @@ Python cases). The hosted live-update test was repeated with the writer lock
 held; read-only polling still completed. Analytics calculations, the two-browser
 live-workspace flow, and all demo destinations at 320/390/768/1440 pixels passed
 with no browser JavaScript errors. Results are in `docs/live-workspace-checks/`.
+
+The same two-browser flow passed on `https://pq-escrow.vercel.app` after deploying
+application commit `b273fdb81bdad52829f7bdc1d58c37480c89322d`. New agreements,
+cancellations and payment outcomes appeared in 2.3–2.9 seconds in that run.
+The delivery case deliberately held an open draft and took 5.5 seconds including
+the deferred refresh. A private note also survived a cancellation arriving during
+editing, then saved successfully before the cancelled view appeared. The public
+run recorded no JavaScript errors; health returned version `2.1.0` with Postgres
+storage available. See `public-results.json` for the observed timings.
