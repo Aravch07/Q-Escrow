@@ -47,7 +47,7 @@ async function applyLiveUpdate(){
 }
 function notifyLiveUpdate(events){
  const incoming=events.find(event=>['bundle_imported','peer_settlement_observed','buyer_funding_updated','funding_failure_recovered'].includes(event.event));if(!incoming)return;
- if(incoming.event==='buyer_funding_updated'){toast('Buyer funding updated. Payment can be checked again.');return;}if(incoming.event==='funding_failure_recovered'){toast('The payment can be retried. Buyer funding is needed.');return;}
+ if(incoming.event==='buyer_funding_updated'){toast('Buyer funding updated. Payment can be checked again.');return;}if(incoming.event==='funding_failure_recovered'){toast('The agreement was restored. Your original file and signatures are preserved.');return;}
  const labels={PROPOSED:'New agreement received.',LOCKED:'Your agreement was signed.',DELIVERED:'New delivery received. Your workspace is updating.',ACCEPTED:'A delivery decision was received.',SETTLED:'Payment outcome recorded.',CANCELLED:'The agreement was cancelled.'};
  toast(labels[incoming.data?.state]||'New agreement activity received.');
 }

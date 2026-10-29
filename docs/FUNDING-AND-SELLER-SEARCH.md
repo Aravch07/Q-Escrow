@@ -54,3 +54,10 @@ and payment/cancellation concurrency.
 normalisation, keyboard/mouse choice, narrow layouts, an approved unfunded payment,
 the exact-amount Wallet handoff, automatic seller updates and eventual settlement
 with the original signatures. Existing browser scripts use the new username field.
+
+The same browser flow passed on the public Vercel deployment of application
+commit `5527c952098b0794779f1aa5dbcf6fc21f0c29b4`, with no JavaScript errors.
+The live health endpoint reported version `2.1.1`. The run verified search,
+the unfunded HOLD, deposit handoff, preserved signatures, live seller updates,
+and exactly 1 test ETH of seller earnings. Machine-readable results are in
+`docs/funding-search-checks/public-results.json`.
