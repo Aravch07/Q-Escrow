@@ -26,11 +26,11 @@ function waitingForUpdate(show){
  if(!banner){banner=document.createElement('div');banner.id='workspace-update';banner.setAttribute('role','status');banner.textContent='New workspace updates are waiting. Finish your current form to show them; your edits are being kept.';document.body.append(banner);}
 }
 function snapshotView(){return {x:scrollX,y:scrollY,filter:document.querySelector('[data-filter][aria-pressed="true"]')?.dataset.filter||escrowFilter,query:$('#escrow-search')?.value??escrowQuery,role:$('#agreement-role')?.value||hostedRole,sort:$('#agreement-sort')?.value||hostedSort,
- details:[...document.querySelectorAll('#main details[open]')].map(detail=>detail.querySelector('summary')?.textContent),focus:document.activeElement?.id};}
+ details:[...document.querySelectorAll('#main details[open]')].map(detail=>detail.querySelector('summary')?.textContent),detailIds:[...document.querySelectorAll('#main details[open][id]')].map(detail=>detail.id),focus:document.activeElement?.id};}
 function restoreView(view){
  if(!view)return;
  if($('#escrow-search')){escrowFilter=view.filter;escrowQuery=view.query;hostedRole=view.role;hostedSort=view.sort;$('#escrow-search').value=view.query;if($('#agreement-role'))$('#agreement-role').value=view.role;if($('#agreement-sort'))$('#agreement-sort').value=view.sort;updateEscrowResults();}
- for(const detail of document.querySelectorAll('#main details'))if(view.details.includes(detail.querySelector('summary')?.textContent))detail.open=true;
+ for(const detail of document.querySelectorAll('#main details'))if(view.detailIds?.includes(detail.id)||view.details.includes(detail.querySelector('summary')?.textContent))detail.open=true;
  if(view.focus)document.getElementById(view.focus)?.focus({preventScroll:true});
  scrollTo({left:view.x,top:view.y,behavior:'instant'});
 }

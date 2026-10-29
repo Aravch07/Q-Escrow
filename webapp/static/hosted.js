@@ -78,15 +78,38 @@ function decorateDeadlines(){
 }
 async function updateInboxBadge(){
  if(!runtime.hosted||!me||document.hidden)return;
- const name=me.identity.name,{unread}=await api('notifications');if(me?.identity.name!==name)return;
+ const name=me.identity.name,{unread}=await api('notifications?summary=1');if(me?.identity.name!==name)return;
  const badge=$('#inbox-count');if(badge){badge.textContent=unread>99?'99+':String(unread);badge.hidden=unread===0;}
  lastUnread=unread;
 }
-async function inboxPage(){
- const {events}=await api('notifications');
- const names={account_created:'Your workspace is ready',proposed:'An agreement was created',countersigned:'The terms were signed',delivered:'A delivery is ready',decision_release:'Payment was approved',decision_refund:'A refund was requested',settled_release:'Payment completed',settled_refund:'Refund completed',agreement_cancelled:'Agreement cancelled',settled_cancelled:'Cancellation recorded',bundle_imported:'New agreement evidence',peer_settlement_observed:'Settlement confirmed',claim:'Earnings claimed',wallet_deposit:'Funds deposited'};
- return head('Keep things moving','Your inbox','Updates from your agreements, deliveries, and payments.','<button class="secondary" data-hosted="read-inbox">Mark all as read</button>')+`<section class="card inbox-list">${events.map(e=>`<article class="inbox-item ${e.unread?'unread':''}"><span class="event-icon">${icon(e.event.includes('settled')?'check':'bell')}</span><div><strong>${esc(names[e.event]||e.event.replaceAll('_',' '))}</strong><p>${esc(stamp(e.at))}</p>${e.escrow_id?`<a class="text-link" href="#escrows/${e.escrow_id}">Open agreement ${icon('arrow')}</a>`:''}</div>${e.unread?'<span class="unread-dot" aria-label="Unread"></span>':''}</article>`).join('')||'<div class="empty"><h3>You’re all caught up.</h3><p>Your agreement updates will appear here.</p></div>'}</section>`;
+const inboxView={owner:null,data:null,status:'all',query:'',unreadOnly:false};
+function inboxEventName(event){
+ if(event.event==='bundle_imported')return ({PROPOSED:'Agreement received',LOCKED:'Terms signed',DELIVERED:'File delivered',ACCEPTED:'Buyer decision received',CANCELLED:'Cancellation received'})[event.observed_state]||'Agreement updated';
+ return ({account_created:'Your workspace is ready',proposed:'Agreement created',countersigned:'Terms signed',delivered:'File delivered',decision_release:'Payment approved',decision_refund:'Refund requested',settled_release:'Payment completed',settled_refund:'Refund completed',agreement_cancelled:'Agreement cancelled',settled_cancelled:'Cancellation recorded',peer_settlement_observed:'Settlement confirmed',claim:'Earnings claimed',wallet_deposit:'Funds deposited',withdraw:'Funds withdrawn',buyer_funding_updated:'Buyer funding updated',funding_failure_recovered:'Agreement restored for retry',rejected:'Settlement needs review'})[event.event]||event.event.replaceAll('_',' ');
 }
+function inboxSender(sender){return sender?sender===me.identity.name?'You (@'+sender+')':'@'+sender:'System';}
+function inboxEventHTML(event){return `<strong>${esc(inboxEventName(event))}</strong><span class="inbox-event-source">From ${esc(inboxSender(event.sender))}</span><time datetime="${new Date(event.at*1000).toISOString()}">${esc(stamp(event.at))}</time>`;}
+function inboxAgreementCard(card){
+ const latest=card.events[0],history=card.events.slice(1);
+ return `<article class="card inbox-item agreement-inbox-card ${card.unread_count?'unread':''}" data-agreement="${esc(card.escrow_id)}"><div class="inbox-card-top"><div class="inbox-card-title"><h3><a href="#escrows/${card.escrow_id}" title="${esc(card.title)}">${esc(card.title)}</a></h3><p>${card.role==='buyer'?'Buying from':'Delivering to'} <strong>@${esc(card.counterparty)}</strong></p></div><span class="badge ${card.state.toLowerCase()}">${esc(card.status_label)}</span></div><p class="inbox-created-by">Created by ${esc(inboxSender(card.created_by))}</p><div class="inbox-latest"><span class="event-icon">${icon(latest.event.includes('settled')?'check':'bell')}</span><div>${inboxEventHTML(latest)}</div>${card.unread_count?`<span class="inbox-unread-label"><i class="unread-dot" aria-hidden="true"></i>${card.unread_count} new</span>`:''}</div>${history.length?`<details class="inbox-history" id="inbox-history-${card.escrow_id}"><summary>Recent updates (${history.length})</summary><ol>${history.map(event=>`<li>${inboxEventHTML(event)}</li>`).join('')}</ol></details>`:''}<a class="text-link inbox-open" href="#escrows/${card.escrow_id}">Open agreement ${icon('arrow')}</a></article>`;
+}
+function inboxResultsHTML(){
+ const data=inboxView.data,query=inboxView.query.trim().toLowerCase().replace(/^@/,'');
+ const agreements=data.agreements.filter(card=>(inboxView.status==='all'||inboxView.status===card.state)&&(!inboxView.unreadOnly||card.unread_count>0)&&[card.title,card.buyer,card.seller,...card.events.map(e=>e.sender||'system')].join(' ').toLowerCase().includes(query));
+ const sections=data.statuses.map(({state,label})=>{const cards=agreements.filter(card=>card.state===state);return cards.length?`<section class="inbox-group" data-status="${state}"><header><h2>${esc(label)}</h2><span>${cards.length} agreement${cards.length===1?'':'s'}</span></header><div class="inbox-group-grid">${cards.map(inboxAgreementCard).join('')}</div></section>`:'';}).join('');
+ const account=data.account_events.filter(event=>(inboxView.status==='all'||inboxView.status==='account')&&(!inboxView.unreadOnly||event.unread)&&[inboxEventName(event),event.sender||'system'].join(' ').toLowerCase().includes(query));
+ const accountHTML=account.length?`<details class="card inbox-account-section" id="inbox-account" ${agreements.length?'':'open'}><summary>Account updates <span>${account.length} recent</span></summary><div class="inbox-account-events">${account.map(event=>`<article class="inbox-item ${event.unread?'unread':''}"><span class="event-icon">${icon('bell')}</span><div>${inboxEventHTML(event)}</div>${event.unread?'<span class="unread-dot" aria-label="Unread"></span>':''}</article>`).join('')}</div></details>`:'';
+ return sections+accountHTML||'<section class="card empty"><h3>No updates match this view.</h3><p>Try another status, username or agreement name.</p></section>';
+}
+function updateInboxResults(){if($('#inbox-results')&&inboxView.data)$('#inbox-results').innerHTML=inboxResultsHTML();}
+async function inboxPage(){
+ const owner=me.identity.name,data=await api('notifications');if(me?.identity.name!==owner)return '';
+ if(inboxView.owner!==owner){inboxView.owner=owner;inboxView.status='all';inboxView.query='';inboxView.unreadOnly=false;}
+ inboxView.data=data;
+ return head('Keep things moving','Your inbox','Your agreements, organised by their current status.','<button class="secondary" data-hosted="read-inbox" '+(data.unread?'':'disabled')+'>Mark all as read</button>')+`<div class="inbox-overview"><span><strong>${data.agreements.length}</strong> agreement${data.agreements.length===1?'':'s'}</span><span><strong>${data.unread}</strong> unread update${data.unread===1?'':'s'}</span></div><section class="card inbox-toolbar" aria-label="Filter inbox"><label class="inbox-search-label" for="inbox-search">Search agreements or people<input id="inbox-search" type="search" placeholder="Agreement name or @username" value="${esc(inboxView.query)}" autocomplete="off"></label><label for="inbox-status">Agreement status<select id="inbox-status"><option value="all">All statuses</option>${data.statuses.map(({state,label})=>`<option value="${state}" ${inboxView.status===state?'selected':''}>${esc(label)} (${data.status_counts[state]})</option>`).join('')}<option value="account" ${inboxView.status==='account'?'selected':''}>Account updates</option></select></label><label class="inbox-unread-toggle"><input id="inbox-unread-only" type="checkbox" ${inboxView.unreadOnly?'checked':''}>Unread only</label></section><div id="inbox-results">${inboxResultsHTML()}</div>`;
+}
+document.addEventListener('input',event=>{if(event.target.id==='inbox-search'){inboxView.query=event.target.value;updateInboxResults();}});
+document.addEventListener('change',event=>{if(event.target.id==='inbox-status'){inboxView.status=event.target.value;updateInboxResults();}if(event.target.id==='inbox-unread-only'){inboxView.unreadOnly=event.target.checked;updateInboxResults();}});
 async function hostedSettings(){
  const [profile,{sessions}]=await Promise.all([api('profile'),api('sessions')]);
  return `<section class="card hosted-profile"><div class="card-title"><div><p class="eyebrow">Make it yours</p><h2>Your profile</h2></div></div><form id="profile-form"><label for="profile-name">Display name</label><div class="inline-field"><input id="profile-name" name="display_name" value="${esc(profile.display_name)}" maxlength="80" autocomplete="name"><button type="submit">Save profile</button></div><p class="fine">Your signing username remains <strong>${esc(me.identity.name)}</strong>.</p></form></section><section class="card sessions-card"><div class="card-title"><div><p class="eyebrow">Account security</p><h2>Active sessions</h2><p>Sign out a device you no longer use.</p></div><button class="secondary" data-hosted="revoke-others" ${sessions.length<2?'disabled':''}>Sign out other devices</button></div>${sessions.map(s=>`<div class="session-row">${icon('shield')}<div><strong>${s.current?'This browser':'Web session'}</strong><p class="session-device">${esc(s.device)}</p><small>Signed in ${esc(stamp(s.created_at))} · Expires ${esc(stamp(s.expires))}</small></div>${s.current?'<span class="badge verified">Current</span>':`<button class="ghost" data-hosted="revoke-session" data-session="${s.id}">Sign out</button>`}</div>`).join('')}</section>`;
@@ -99,9 +122,7 @@ async function enhanceHosted(){
  $('.network')?.setAttribute('title',me.online?'Payments are connected':'Payments are paused; this online workspace still needs internet');
  const banner=$('.offline-banner>span');if(banner)banner.textContent='Payments are paused. You can still sign and exchange files here. Connect to finish the payment.';
  const active=()=>version===renderVersion&&me&&(location.hash.slice(1)||'overview')===path;
- if(page==='inbox'){
-  const html=await inboxPage();if(active())$('#main').innerHTML=html;
- }else if(page==='settings'){
+ if(page==='settings'){
   const html=await hostedSettings();if(!active())return;
   $('.account-details').insertAdjacentHTML('beforebegin',html);
   $('.account-details>p').textContent='Your saved signing key is encrypted with your password. Each active session is separately encrypted and can be revoked above. Signing runs on the hosted server after your confirmation.';

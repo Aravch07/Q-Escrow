@@ -22,6 +22,8 @@ the ledger into a live Ethereum contract or real-money custody service.
 
 Live updates and immediate cancellation are described in
 [the workspace update guide](LIVE-UPDATES-AND-CANCELLATION.md).
+The [inbox guide](INBOX.md) covers status groups, agreement names, sender labels,
+filters and read-state synchronisation.
 
 * Persistent registration, password sign-in, profiles and account-specific workspaces.
 * Encrypted, expiring signing sessions that work across server instances. Settings

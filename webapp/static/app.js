@@ -273,6 +273,7 @@ async function render(options={}) {
   else if(page==='verify')html=verifyPage();
   else if(page==='lab')html=await lab();
   else if(page==='activity')html=await activityPage();
+  else if(page==='inbox'&&runtime.hosted)html=await inboxPage();
   else if(page==='settings')html=settings();
   else if(page==='help')html=helpPage();
   else html=await overview();

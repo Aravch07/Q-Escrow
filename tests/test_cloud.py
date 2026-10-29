@@ -325,3 +325,61 @@ def test_unfunded_payment_remains_retryable_and_completes_after_deposit(hosted):
     after = seller.get(f'/api/escrows/{id}').json
     assert after['state'] == 'SETTLED' and after['bundle']['signatures'] == before['bundle']['signatures']
     assert seller.get('/api/wallet').json['account']['claimable'] == str(10**18)
+
+
+def test_inbox_groups_current_status_titles_senders_and_ownership(hosted,tmp_path):
+    from webapp.cloud_store import CloudStore
+    app, _, connect = hosted
+    buyer,seller,outsider=account(app,'buyer'),account(app,'seller'),account(app,'outsider')
+    assert post(buyer,'wallet/deposit',{'amount_wei':str(2*10**18),'lock_seconds':60}).status_code==200
+    ids={}
+    for stage in ('PROPOSED','LOCKED','DELIVERED','ACCEPTED','SETTLED','CANCELLED'):
+        result=post(buyer,'escrows',{'seller':'seller','amount_wei':str(10**18),'description':stage+' brand package','expires_at':int(time.time())+3600})
+        assert result.status_code==201,result.json
+        id=result.json['escrow_id'];ids[stage]=id
+        if stage=='CANCELLED':
+            assert post(seller,f'escrows/{id}/cancel').status_code==200
+            continue
+        if stage=='PROPOSED':continue
+        assert post(seller,f'escrows/{id}/countersign').status_code==200
+        if stage=='LOCKED':continue
+        uploaded=upload(seller,b'brand delivery',id)
+        assert post(seller,f'escrows/{id}/deliver-upload',{'upload_id':uploaded}).status_code==200
+        if stage=='DELIVERED':continue
+        assert post(buyer,f'escrows/{id}/accept',{'decision':'release'}).status_code==200
+        if stage=='SETTLED':assert post(buyer,'reconcile',{'escrow_id':id}).status_code==200
+    with connect() as connection:
+        store=CloudStore(tmp_path/'inbox-audit','buyer',connection)
+        for _ in range(45):store.log('buyer_funding_updated',ids['ACCEPTED'],{'state':'ACCEPTED'})
+        store.log('reconcile_hold',ids['PROPOSED'],{'reason':'Waiting'})
+    data=buyer.get('/api/notifications').json
+    assert len(data['agreements'])==6
+    cards={card['state']:card for card in data['agreements']}
+    assert cards['PROPOSED']['title']=='PROPOSED brand package'
+    assert cards['DELIVERED']['events'][0]['sender']=='seller'
+    assert cards['ACCEPTED']['events'][0]['sender']=='buyer'
+    assert cards['CANCELLED']['events'][0]['sender']=='seller'
+    assert all(len(card['events'])<=5 for card in cards.values())
+    assert cards['ACCEPTED']['update_count']>40
+    assert all(card['counterparty']=='seller' and card['created_by']=='buyer' for card in cards.values())
+    assert all(e['event']!='reconcile_hold' for e in data['events'])
+    assert buyer.get('/api/notifications?summary=1').json['unread']==data['unread']
+    private=outsider.get('/api/notifications').json
+    assert private['agreements']==[] and 'brand package' not in str(private)
+    assert app.test_client().get('/api/notifications').status_code==401
+
+
+def test_inbox_same_second_read_cursor_and_live_revision(hosted,monkeypatch):
+    app,factory,_=hosted
+    buyer,seller=account(app,'buyer'),account(app,'seller')
+    fixed=int(time.time());monkeypatch.setattr(cloud.time,'time',lambda:fixed)
+    before=seller.get('/api/updates').json['revision']
+    assert post(seller,'notifications').status_code==200
+    assert seller.get('/api/notifications?summary=1').json['unread']==0
+    assert seller.get('/api/updates').json['revision']!=before
+    created=post(buyer,'escrows',{'seller':'seller','amount_wei':'1','description':'Same-second arrival','expires_at':fixed+3600})
+    assert created.status_code==201
+    data=recreate(factory,seller).get('/api/notifications').json
+    assert data['unread']==1 and data['agreements'][0]['unread_count']==1
+    assert data['agreements'][0]['events'][0]['at']==fixed
+    assert data['agreements'][0]['events'][0]['sender']=='buyer'

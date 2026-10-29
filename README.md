@@ -40,6 +40,11 @@ computer. The current release uses **simulated test ETH**; no real money moves.
 | A view of your activity | Interactive charts, status breakdowns, role filters and CSV exports. |
 | A workspace that stays organised | Searchable agreements, private notes, an activity inbox, profiles and session controls online. |
 
+The inbox groups agreement cards by their current status. Each card shows the
+agreement name, counterparty, creator and latest update sender, with recent history
+inside the card. Filter by status, search names or usernames, or show unread
+updates only. Wallet and account notifications stay in a separate section.
+
 ## See the bigger picture
 
 Track saved activity, released payments and agreement value. Switch between

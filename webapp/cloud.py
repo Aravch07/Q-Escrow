@@ -24,6 +24,7 @@ from escrow.protocol import MAX_PAYLOAD, deliver, filename, record_from_bundle
 from escrow.reconcile import verify_offline
 from .accounts import HTTPError
 from .cloud_store import CloudAccounts, CloudLedger, connect_database, initialize_database
+from .inbox import build_inbox
 from .server import App, Handler, STATIC
 
 CHUNK = 1024 * 1024
@@ -147,12 +148,23 @@ class CloudHandler(Handler):
         if route == "notifications":
             if post:
                 self.body()
-                conn.execute("UPDATE pqe_profiles SET notifications_seen=%s WHERE username=%s", (self.app.now(), name))
+                cursor = conn.execute("SELECT count FROM pqe_heads WHERE owner=%s", (name,)).fetchone()[0]
+                conn.execute("UPDATE pqe_profiles SET notifications_seen=%s,notifications_seen_id=%s WHERE username=%s", (self.app.now(), cursor, name))
                 return self.send(200, {"ok": True})
-            seen = conn.execute("SELECT notifications_seen FROM pqe_profiles WHERE username=%s", (name,)).fetchone()[0]
-            rows = conn.execute("SELECT body FROM pqe_audit WHERE owner=%s ORDER BY id DESC LIMIT 40", (name,)).fetchall()
-            events = [dict(id=r[0]["id"], event=r[0]["event"], at=r[0]["at"], escrow_id=r[0]["escrow_id"], unread=r[0]["at"] > seen) for r in rows]
-            return self.send(200, {"events": events, "unread": sum(e["unread"] for e in events)})
+            seen = conn.execute("SELECT notifications_seen,notifications_seen_id FROM pqe_profiles WHERE username=%s", (name,)).fetchone()
+            condition, marker = ("id>%s", seen[1]) if seen[1] is not None else ("(body->>'at')::bigint>%s", seen[0])
+            if request.args.get("summary") == "1":
+                count = conn.execute("SELECT COUNT(*) FROM pqe_audit WHERE owner=%s AND body->>'event'<>'reconcile_hold' AND " + condition, (name, marker)).fetchone()[0]
+                return self.send(200, {"unread": count})
+            rows = conn.execute("""WITH ranked AS (
+                SELECT body, id, ROW_NUMBER() OVER(PARTITION BY body->>'escrow_id' ORDER BY id DESC) AS slot,
+                COUNT(*) OVER(PARTITION BY body->>'escrow_id') AS group_total,
+                COUNT(*) FILTER(WHERE """ + condition + """) OVER(PARTITION BY body->>'escrow_id') AS group_unread
+                FROM pqe_audit WHERE owner=%s AND body->>'event'<>'reconcile_hold')
+                SELECT body,group_total,group_unread FROM ranked
+                WHERE slot<=CASE WHEN body->>'escrow_id' IS NULL THEN 20 ELSE 5 END ORDER BY id DESC""", (marker, name)).fetchall()
+            records = conn.execute("SELECT id,body-'signatures'-'payload_path' AS body,body->'signatures' ? 'seller' AS seller_signed FROM pqe_records WHERE owner=%s", (name,)).fetchall()
+            return self.send(200, build_inbox(name, rows, records, seen[0], seen[1]))
         if route == "export" and not post:
             buffer = io.StringIO(newline="")
             writer = csv.writer(buffer)
@@ -311,7 +323,7 @@ def create_app(database_url=None, session_key=None):
             key()
             with connect_database(database_url) as conn:
                 conn.execute("SELECT 1")
-            return jsonify(ok=True, storage="postgres", version="2.1.1")
+            return jsonify(ok=True, storage="postgres", version="2.2.0")
         except Exception:
             return jsonify(ok=False, error="Workspace storage is temporarily unavailable"), 503
 
@@ -324,13 +336,13 @@ def create_app(database_url=None, session_key=None):
         try:
             token = sha256_bytes(request.cookies.get("pqe_session", "").encode())
             with connect_database(database_url) as conn:
-                row = conn.execute("SELECT s.username,COALESCE(h.count,0) AS count,COALESCE(h.hash,'') AS hash FROM pqe_sessions s LEFT JOIN pqe_heads h ON h.owner=s.username WHERE s.token_hash=%s AND s.expires>%s", (token, int(time.time()))).fetchone()
+                row = conn.execute("SELECT s.username,COALESCE(h.count,0) AS count,COALESCE(h.hash,'') AS hash,COALESCE(to_jsonb(p)->>'notifications_seen_id',to_jsonb(p)->>'notifications_seen','0') AS seen_cursor FROM pqe_sessions s LEFT JOIN pqe_heads h ON h.owner=s.username LEFT JOIN pqe_profiles p ON p.username=s.username WHERE s.token_hash=%s AND s.expires>%s", (token, int(time.time()))).fetchone()
                 if not row:
                     return jsonify(error="Sign in to continue"), 401
                 events = [] if after is None else [r[0] for r in conn.execute(
                     "SELECT body FROM pqe_audit WHERE owner=%s AND id>%s AND id<=%s ORDER BY id DESC LIMIT 20", (row["username"], int(after), row["count"]))]
                 events = [{k: event[k] for k in ("id", "at", "event", "escrow_id", "data")} for event in events]
-            return jsonify(count=row["count"], revision=str(row["count"]) + ":" + row["hash"], events=events)
+            return jsonify(count=row["count"], revision=str(row["count"]) + ":" + row["hash"] + ":" + row["seen_cursor"], events=events)
         except Exception:
             logging.exception("Workspace update check failed")
             return jsonify(error="Live updates are reconnecting"), 503

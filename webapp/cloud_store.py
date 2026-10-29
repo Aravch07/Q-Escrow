@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS pqe_sequences(owner TEXT NOT NULL, buyer TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS pqe_audit(owner TEXT NOT NULL, id BIGINT NOT NULL, body JSONB NOT NULL, hash TEXT NOT NULL, PRIMARY KEY(owner,id));
 CREATE TABLE IF NOT EXISTS pqe_heads(owner TEXT PRIMARY KEY, count BIGINT NOT NULL, hash TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS pqe_ledger(id INTEGER PRIMARY KEY, state JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS pqe_profiles(username TEXT PRIMARY KEY REFERENCES pqe_users(username), display_name TEXT NOT NULL DEFAULT '', notifications_seen BIGINT NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS pqe_profiles(username TEXT PRIMARY KEY REFERENCES pqe_users(username), display_name TEXT NOT NULL DEFAULT '', notifications_seen BIGINT NOT NULL DEFAULT 0, notifications_seen_id BIGINT);
+ALTER TABLE pqe_profiles ADD COLUMN IF NOT EXISTS notifications_seen_id BIGINT;
 CREATE TABLE IF NOT EXISTS pqe_notes(owner TEXT NOT NULL, escrow_id TEXT NOT NULL, note TEXT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY(owner,escrow_id));
 CREATE TABLE IF NOT EXISTS pqe_uploads(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES pqe_users(username), size BIGINT NOT NULL,
  filename TEXT NOT NULL, purpose TEXT NOT NULL, escrow_id TEXT, created_at BIGINT NOT NULL);
@@ -218,10 +219,10 @@ class CloudStore:
         return [{**row["body"], "hash": row["hash"]} for row in self.connection.execute("SELECT body,hash FROM pqe_audit WHERE owner=%s ORDER BY id", (self.owner,))]
 
     def updates(self, after=None):
-        row = self.connection.execute("SELECT count,hash FROM pqe_heads WHERE owner=%s", (self.owner,)).fetchone()
+        row = self.connection.execute("SELECT h.count,h.hash,COALESCE(to_jsonb(p)->>'notifications_seen_id',to_jsonb(p)->>'notifications_seen','0') AS seen_cursor FROM pqe_heads h LEFT JOIN pqe_profiles p ON p.username=h.owner WHERE h.owner=%s", (self.owner,)).fetchone()
         events = [] if after is None else [r[0] for r in self.connection.execute(
             "SELECT body FROM pqe_audit WHERE owner=%s AND id>%s AND id<=%s ORDER BY id DESC LIMIT 20", (self.owner, after, row[0]))]
-        return {"count": row[0], "revision": str(row[0]) + ":" + row[1], "events": events}
+        return {"count": row[0], "revision": str(row[0]) + ":" + row[1] + ":" + row[2], "events": events}
 
     def verify_log(self):
         previous, count = "", 0
