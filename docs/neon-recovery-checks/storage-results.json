@@ -1,0 +1,11 @@
+{
+  "new_database_reachable": true,
+  "table_counts": {
+    "pqe_users": 2,
+    "pqe_records": 8,
+    "pqe_files": 2,
+    "pqe_audit": 35,
+    "pqe_notes": 1
+  },
+  "database_bytes": 9150464
+}

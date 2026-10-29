@@ -74,15 +74,30 @@ semantics. An upload cannot be finalized for another account or agreement.
 ## Configuration and deployment
 
 The dedicated Vercel project is `uni-321d/pq-escrow`, linked to
-`Aravch07/Q-Escrow`. The database resource is `pq-escrow-db`, on Neon's Free plan
-in Singapore. No unrelated project's database or account data is used.
+`Aravch07/Q-Escrow`. Production uses the dedicated Neon project
+`pq-escrow-recovery-20261029`, on the Free plan in Singapore with a fixed 0.25 CU
+compute and the default idle suspension. The connection is configured manually
+in Vercel. No unrelated project's database or account data is used.
+
+On 29 October 2026, the site was connected to this fresh workspace after the
+previous database reached a provider quota. The original `pq-escrow-db` resource
+was disconnected from the website and retained without deleting its data. Old
+accounts and agreements were not migrated. Create new accounts on the live site;
+new profiles, agreements, files, balances and activity persist in the new database.
+See [fresh workspace verification](NEON-RECOVERY.md) for the public browser and
+redeployment persistence checks.
 
 Required environment variables, managed in Vercel:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | TLS Postgres connection, injected by the Neon integration |
+| `DATABASE_URL` | Pooled TLS Postgres connection for the active Neon project |
 | `PQE_SESSION_KEY` | Base64-encoded 32 random bytes for AES-GCM session encryption |
+
+`DATABASE_URL_UNPOOLED` is retained for administration and checks, and
+`NEON_PROJECT_ID` identifies the active project. Update connection settings for
+production, preview and development together when changing databases. Keep the
+session encryption key independent of the database connection settings.
 
 Keep both values out of source control. `.env*`, `.vercel/`, runtime data,
 virtual environments and downloaded tools are ignored. Pass secrets through

@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "checks": [
+    "new accounts sign in through UI after production redeploy",
+    "both parties retain settlement and original verified signatures",
+    "delivered file survives redeploy and matches signed SHA-256",
+    "cancellation and private note persist with ownership separation",
+    "earnings can be claimed and wallet changes persist",
+    "both audit chains remain valid"
+  ],
+  "consoleErrors": []
+}
