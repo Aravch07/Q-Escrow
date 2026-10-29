@@ -313,11 +313,37 @@ def test_insufficient_balance_and_unregistered(web):
     b.post('escrows/'+id+'/countersign');b.post('escrows/'+id+'/deliver',b'file',raw=True)
     a.post('escrows/'+id+'/accept',{'decision':'release'})
     result=a.post('reconcile')[1]['results'][0]
-    assert result['outcome']=='REJECT' and 'Insufficient' in result['reason']
+    assert result['outcome']=='HOLD' and 'Insufficient' in result['reason']
     # Bob creates a new buyer agreement but has not registered a buyer key.
     r=b.post('escrows',dict(seller='alice',amount_wei='1',description='Unregistered buyer'))[1]
     result=next(x for x in b.post('reconcile')[1]['results'] if x['escrow_id']==r['escrow_id'])
-    assert result['outcome']=='REJECT' and 'not registered' in result['reason']
+    assert result['outcome']=='HOLD' and 'Waiting for delivery' in result['reason']
+
+
+def test_unfunded_approval_can_finish_after_deposit_and_notify_seller(web):
+    buyer, seller = web.client('bob'), web.client('carol')
+    result = buyer.post('escrows', dict(seller='carol',amount_wei=str(ETH),description='Retry after funding'))[1]
+    id = result['escrow_id']
+    other = buyer.post('escrows', dict(seller='carol',amount_wei='1',description='Leave this pending'))[1]['escrow_id']
+    assert seller.post('escrows/'+id+'/countersign')[0] == 200
+    assert seller.post('escrows/'+id+'/deliver', b'approved bytes', raw=True)[0] == 200
+    assert buyer.post('escrows/'+id+'/accept', {'decision':'release'})[0] == 200
+    before = buyer.get('escrows/'+id)[1]
+    assert before['funding']['registered'] is False and before['funding']['shortfall_wei'] == str(ETH)
+    result = buyer.post('reconcile', {'escrow_id':id})[1]['results']
+    assert len(result) == 1 and result[0]['outcome'] == 'HOLD'
+    assert buyer.get('escrows/'+id)[1]['rejection'] is None
+    assert buyer.get('escrows/'+other)[1]['state'] == 'PROPOSED'
+    cursor = seller.get('updates')[1]['count']
+    assert buyer.post('wallet/deposit', {'amount_wei':str(ETH),'lock_seconds':60})[0] == 200
+    events = seller.get('updates?after='+str(cursor))[1]['events']
+    assert any(e['event']=='buyer_funding_updated' and e['escrow_id']==id for e in events)
+    result = buyer.post('reconcile', {'escrow_id':id})[1]['results']
+    assert result[0]['outcome'] == 'RELEASE'
+    after = buyer.get('escrows/'+id)[1]
+    assert after['bundle']['signatures'] == before['bundle']['signatures']
+    assert seller.get('wallet')[1]['account']['claimable'] == str(ETH)
+    assert buyer.post('reconcile', {'escrow_id':'bad'})[0] == 400
 
 
 def test_attack_lab_and_verify(web):

@@ -31,6 +31,7 @@ computer. The current release uses **simulated test ETH**; no real money moves.
 | What you need | What PQ-Escrow gives you |
 | --- | --- |
 | Clear expectations | A guided agreement builder with a partner, amount, deadline and optional reference file. |
+| The right partner | Search seller usernames, including case-insensitive @username entry, with mouse or keyboard selection. |
 | The exact deliverable | Automatic SHA-256 fingerprinting. A different file is blocked when a reference fingerprint is agreed. |
 | Proof at each step | ML-DSA-65 signatures on terms, delivery and decisions, with exportable evidence. |
 | A clear next action | Buyer and seller views that guide each person through agreement, delivery, review and payment. |
@@ -155,3 +156,8 @@ custody. See the architecture and developer guide for the trust model and limits
 The earlier release is preserved on
 [`codex/pre-redesign-2026-10-29`](https://github.com/Aravch07/Q-Escrow/tree/codex/pre-redesign-2026-10-29)
 for source rollback.
+
+Wallet funds must be deposited into escrow before a payment can finish. A missing
+deposit or insufficient balance now leaves an approved agreement waiting for
+funding; its file and signatures remain valid for retry. See
+[funding and seller search](docs/FUNDING-AND-SELLER-SEARCH.md).

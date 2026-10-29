@@ -189,7 +189,7 @@ Unix seconds. Responses contain either the result or `{"error":"explanation"}`.
 | POST | `withdraw` | `{amount_wei}`; online, unlocked funds required |
 | POST | `claim` | `{}`; online; move all earnings to test wallet |
 | GET / POST | `escrows` | List own records / `{seller,amount_wei,description,expires_at?,expected_sha256?}` |
-| GET | `escrows/{id}` | Instrument, state, role, seals, all checks, activity, bundle |
+| GET | `escrows/{id}` | Instrument, state, role, seals, checks, funding shortfall/registration, activity, bundle |
 | POST | `escrows/{id}/countersign` | `{}`; seller, proposed, before expiry |
 | POST | `escrows/{id}/deliver` | Raw file body, URL-encoded `X-Filename`; seller, locked |
 | POST | `escrows/{id}/accept` | `{decision:"release"/"refund"}`; buyer, delivered |
@@ -198,7 +198,7 @@ Unix seconds. Responses contain either the result or `{"error":"explanation"}`.
 | GET | `escrows/{id}/bundle` | Full signed JSON attachment; either party |
 | POST | `verify-bundle` | Full bundle or `{bundle: ...}` → offline verdict and checks |
 | POST | `verify-file` | Raw bytes → SHA-256 and size (the UI instead hashes locally) |
-| POST | `reconcile` | `{}` → all pending verdicts in deterministic order; online |
+| POST | `reconcile` | `{}` → all pending verdicts; optional `{escrow_id}` → one owned agreement; online |
 | GET | `chain` | Shared local ledger explorer snapshot |
 | GET | `audit` | Own audit entries and chain validity |
 | POST | `lab/attack` | `{kind:"file"/"signature"/"price",escrow_id?,options?}` → changes, steps, before/after checks and verdict |

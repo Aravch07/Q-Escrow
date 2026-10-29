@@ -210,7 +210,7 @@ def test_deterministic_balance_consumption(world):
     first=happy(a,b,amount=4*ETH);second=happy(a,b,amount=2*ETH)
     results=reconcile(a,chain)
     assert [x['escrow_id'] for x in results]==[first.escrow_id,second.escrow_id]
-    assert [x['outcome'] for x in results]==['RELEASE','REJECT']
+    assert [x['outcome'] for x in results]==['RELEASE','HOLD']
     assert 'Insufficient' in results[1]['reason']
 
 
@@ -220,6 +220,36 @@ def test_unregistered_and_wrong_key(world,tmp_path):
     assert 'not registered' in reconcile(a,chain)[0]['reason']
     with pytest.raises(ValueError,match='different buyer key'):
         world[3].deposit(a.identity.evm_address,'f'*64,1,60)
+
+
+def test_missing_deposit_is_retryable_without_new_signatures(world, tmp_path):
+    a, b, _, _, _ = world
+    r = happy(a, b)
+    signatures = copy.deepcopy(r.signatures)
+    chain = LocalLedger(tmp_path/'unfunded.json', min_lock=60, clock=a.clock)
+    result = reconcile(a, chain)[0]
+    assert result['outcome'] == 'HOLD' and 'not registered yet' in result['reason']
+    assert a.store.get(r.escrow_id).rejection is None
+    assert a.store.get(r.escrow_id).state == 'ACCEPTED'
+    chain.deposit(a.identity.evm_address, a.identity.key_hash, ETH, 60)
+    assert reconcile(a, chain)[0]['outcome'] == 'RELEASE'
+    assert a.store.get(r.escrow_id).signatures == signatures
+    assert chain.account(b.identity.evm_address)['claimable'] == ETH
+
+
+def test_insufficient_funds_retry_and_real_key_mismatch(world, tmp_path):
+    a, b, _, chain, _ = world
+    r = happy(a, b, amount=6*ETH)
+    assert reconcile(a, chain)[0]['outcome'] == 'HOLD'
+    assert a.store.get(r.escrow_id).rejection is None
+    chain.deposit(a.identity.evm_address, a.identity.key_hash, ETH, 60)
+    assert reconcile(a, chain)[0]['outcome'] == 'RELEASE'
+    r = happy(a, b)
+    wrong = LocalLedger(tmp_path/'wrong-key.json', min_lock=60, clock=a.clock)
+    wrong.deposit(a.identity.evm_address, 'f'*64, ETH, 60)
+    result = reconcile(a, wrong)[0]
+    assert result['outcome'] == 'REJECT' and 'mismatched' in result['reason']
+    assert not wrong.settlement(r.escrow_id)
 
 
 def test_deposit_lock_and_minimum(world):

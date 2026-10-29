@@ -112,7 +112,9 @@ provided CLI received file) and checks the receipt and optional expected hash.
 `reconcile` examines all nonfinal records. Two pending escrows with the same
 buyer EVM address and sequence are **both** rejected for manual review. Remaining
 records are processed by `(buyer address, seq, escrow_id)`. It refuses already
-settled IDs, used sequences, or unregistered/mismatched buyer keys. For RELEASE
+settled IDs, used sequences, or genuinely mismatched registered buyer keys.
+A missing registration or insufficient balance leaves the agreement on HOLD
+so funding can be added and the original approval retried. For RELEASE
 it checks available funds after earlier releases have consumed them. REFUND
 does not debit funds, but requires a registered key and consumes the sequence
 and escrow ID. HOLD remains pending and consumes no balance or sequence.

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "checks": [
+    "self and unknown usernames are refused",
+    "case-insensitive @username search and keyboard selection work",
+    "mouse selection and mobile list fit work",
+    "an unfunded approved agreement stays ACCEPTED after payment attempt",
+    "Wallet shows the exact shortfall and returns to the agreement after deposit",
+    "the seller sees the deposit and completed payment automatically",
+    "the original signatures and delivery remain unchanged",
+    "exactly 1 test ETH becomes claimable"
+  ],
+  "consoleErrors": []
+}

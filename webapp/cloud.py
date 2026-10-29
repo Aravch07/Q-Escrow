@@ -311,7 +311,7 @@ def create_app(database_url=None, session_key=None):
             key()
             with connect_database(database_url) as conn:
                 conn.execute("SELECT 1")
-            return jsonify(ok=True, storage="postgres", version="2.1.0")
+            return jsonify(ok=True, storage="postgres", version="2.1.1")
         except Exception:
             return jsonify(ok=False, error="Workspace storage is temporarily unavailable"), 503
 

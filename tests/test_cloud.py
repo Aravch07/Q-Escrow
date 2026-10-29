@@ -300,3 +300,28 @@ def test_cancel_racing_payment_has_one_final_outcome(hosted):
     else:
         assert a['state'] == 'SETTLED' and cancelled.status_code == 409
         assert snapshot['settlements'][id]['release'] is True
+
+
+def test_unfunded_payment_remains_retryable_and_completes_after_deposit(hosted):
+    app, factory, _ = hosted
+    buyer, seller = account(app, 'buyer'), account(app, 'seller')
+    proposal = post(buyer, 'escrows', dict(seller='seller',amount_wei=str(10**18),description='Retry missing deposit',expires_at=int(time.time())+3600))
+    assert proposal.status_code == 201
+    id = proposal.json['escrow_id']
+    assert post(seller, f'escrows/{id}/countersign').status_code == 200
+    uploaded = upload(seller, b'unchanged approved delivery', id)
+    assert post(seller, f'escrows/{id}/deliver-upload', {'upload_id':uploaded}).status_code == 200
+    assert post(buyer, f'escrows/{id}/accept', {'decision':'release'}).status_code == 200
+    before = buyer.get(f'/api/escrows/{id}').json
+    assert post(buyer, 'reconcile', {'escrow_id':id}).json['results'][0]['outcome'] == 'HOLD'
+    fresh = recreate(factory, buyer)
+    held = fresh.get(f'/api/escrows/{id}').json
+    assert held['state'] == 'ACCEPTED' and held['rejection'] is None
+    assert held['funding']['registered'] is False
+    cursor = seller.get('/api/updates').json['count']
+    assert post(fresh, 'wallet/deposit', {'amount_wei':str(10**18),'lock_seconds':60}).status_code == 200
+    assert any(e['event']=='buyer_funding_updated' for e in seller.get('/api/updates?after='+str(cursor)).json['events'])
+    assert post(fresh, 'reconcile', {'escrow_id':id}).json['results'][0]['outcome'] == 'RELEASE'
+    after = seller.get(f'/api/escrows/{id}').json
+    assert after['state'] == 'SETTLED' and after['bundle']['signatures'] == before['bundle']['signatures']
+    assert seller.get('/api/wallet').json['account']['claimable'] == str(10**18)

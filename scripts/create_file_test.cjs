@@ -18,7 +18,7 @@ fs.mkdirSync(out,{recursive:true});
   await page.goto(url);await page.locator('#username').fill('carol');await page.locator('#password').fill('demo1234');
   await page.getByRole('button',{name:'Sign in \u2192',exact:true}).click();
   await page.getByRole('heading',{name:/Good .*carol/}).waitFor();
-  async function open(){await page.getByRole('button',{name:'\uff0b Create escrow',exact:true}).click();await page.locator('#create-dialog').waitFor({state:'visible'});await page.locator('#seller').selectOption('bob');await page.locator('#description').fill('Expected-file picker QA');await page.getByRole('button',{name:'Continue to file check',exact:true}).click();}
+  async function open(){await page.getByRole('button',{name:'\uff0b Create escrow',exact:true}).click();await page.locator('#create-dialog').waitFor({state:'visible'});await page.locator('#seller').fill('bob');await page.locator('#description').fill('Expected-file picker QA');await page.getByRole('button',{name:'Continue to file check',exact:true}).click();}
   async function pick(text,name='reference.txt'){
    const buffer=Buffer.from(text);await page.locator('#expected-file').setInputFiles({name,mimeType:'text/plain',buffer});
    await page.waitForFunction(hash=>document.querySelector('#expected').value===hash,sha(buffer));return sha(buffer);

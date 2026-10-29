@@ -87,10 +87,13 @@ def reconcile(party, chain, escrow_id=None):
                     verdict = Verdict("REJECT", "Double spend: sequence already used", verdict.checks)
                 else:
                     account = chain.account(t["buyer"]["evm_address"])
-                    if account["keyHash"] != t["buyer"]["key_hash"] and not (r.cancellation and account["keyHash"] in ("", "0" * 64)):
+                    missing_key = account["keyHash"] in ("", "0" * 64)
+                    if not missing_key and account["keyHash"] != t["buyer"]["key_hash"]:
                         verdict = Verdict("REJECT", "Buyer key not registered or mismatched", verdict.checks)
+                    elif missing_key and verdict.outcome != "HOLD" and not r.cancellation:
+                        verdict = Verdict("HOLD", "Buyer key is not registered yet. Add a deposit in Wallet, then finish payment again.", verdict.checks)
                     elif verdict.outcome == "RELEASE" and account["balance"] < int(t["amount_wei"]):
-                        verdict = Verdict("REJECT", "Insufficient escrow balance", verdict.checks)
+                        verdict = Verdict("HOLD", "Insufficient escrow balance. Add test funds in Wallet, then finish payment again.", verdict.checks)
             if verdict.outcome in ("RELEASE", "REFUND", "CANCELLED"):
                 try:
                     bundle = export_bundle(r)
@@ -108,7 +111,7 @@ def reconcile(party, chain, escrow_id=None):
                                                 verdict.outcome == "RELEASE", evidence)
                     party.store.put(r, "settled_" + r.settlement["note"])
                 except ValueError as exc:
-                    verdict = Verdict("REJECT", str(exc), verdict.checks)
+                    verdict = Verdict("HOLD" if str(exc) == "Insufficient escrow balance" else "REJECT", str(exc), verdict.checks)
             if verdict.outcome == "REJECT":
                 r.rejection = verdict.reason
                 party.store.put(r, "rejected")

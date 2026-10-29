@@ -25,7 +25,7 @@ async function consent(page){await page.getByRole('button',{name:'Confirm and si
   await a.screenshot({path:path.join(out,'hosted-new-account.png'),fullPage:true});await signup(b,seller);
   checks.push('New users register with confirmed passwords; shared demo logins are absent; personal workspaces load');
   await route(a,'wallet');await a.locator('#deposit-amount').fill('2');await a.getByRole('button',{name:'Deposit test funds',exact:true}).click();await a.getByText('Test funds deposited and time-locked.',{exact:true}).waitFor();
-  await route(a,'overview');await a.getByRole('button',{name:'＋ Create escrow',exact:true}).click();await a.locator('#seller').selectOption(seller);
+  await route(a,'overview');await a.getByRole('button',{name:'＋ Create escrow',exact:true}).click();await a.locator('#seller').fill(seller);
   await a.locator('#amount').fill('1');await a.locator('#description').fill('Hosted identity package — verified delivery');await a.getByRole('button',{name:'Continue to file check',exact:true}).click();
   await a.locator('#expected-file').setInputFiles({name:'agreed-file.bin',mimeType:'application/octet-stream',buffer:bytes});await a.waitForFunction(hash=>document.querySelector('#expected').value===hash,hash);
   await a.getByRole('button',{name:'Review agreement',exact:true}).click();await a.getByRole('button',{name:'Review and sign terms',exact:true}).click();await consent(a);await a.waitForURL(/#escrows\/[0-9a-f]{64}$/);await ready(a);

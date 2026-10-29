@@ -30,7 +30,7 @@ fs.mkdirSync(out,{recursive:true});
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(out,'mobile-new-user-home.png'),fullPage:true});
   await page.getByRole('button',{name:'\uff0b Create escrow',exact:true}).click();await page.locator('#create-dialog').waitFor({state:'visible'});
   await page.getByRole('button',{name:'Continue to file check',exact:true}).click();assert.equal(await page.locator('[data-create-step="1"]').isVisible(),true);
-  await page.locator('#seller').selectOption('bob');await page.locator('#amount').fill('0');await page.locator('#description').fill('A clear delivery for a new buyer');await page.getByRole('button',{name:'Continue to file check',exact:true}).click();assert.equal(await page.locator('#amount').evaluate(el=>el.validity.valid),false);
+  await page.locator('#seller').fill('bob');await page.locator('#amount').fill('0');await page.locator('#description').fill('A clear delivery for a new buyer');await page.getByRole('button',{name:'Continue to file check',exact:true}).click();assert.equal(await page.locator('#amount').evaluate(el=>el.validity.valid),false);
   await page.locator('#amount').fill('1.25');await page.locator('#hours').fill('48');await page.getByRole('button',{name:'Continue to file check',exact:true}).click();
   const bytes=Buffer.from('The expected file for the guided escrow.'),hash=createHash('sha256').update(bytes).digest('hex');
   await page.locator('#expected-file').setInputFiles({name:'expected.txt',mimeType:'text/plain',buffer:bytes});await page.waitForFunction(hash=>document.querySelector('#expected').value===hash,hash);

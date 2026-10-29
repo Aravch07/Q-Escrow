@@ -75,6 +75,13 @@ class App:
             other = "seller" if record.terms["buyer"]["name"] == party.identity.name else "buyer"
             self.mirror(self.accounts.party(record.terms[other]["name"], public_only=True))
 
+    def notify_funding(self, party):
+        for record in party.store.all():
+            if record.terms["buyer"]["name"] != party.identity.name or record.settlement or record.rejection or record.cancellation:
+                continue
+            other = self.accounts.party(record.terms["seller"]["name"], public_only=True)
+            other.store.log("buyer_funding_updated", record.escrow_id, {"state": record.state})
+
     def record(self, party, escrow_id):
         try:
             r = party.store.get(escrow_id)
@@ -88,8 +95,11 @@ class App:
         verdict = verify_offline(r, self.now())
         t = r.terms
         onchain = self.chain.account(t["buyer"]["evm_address"])
+        funding = dict(registered=onchain["keyHash"] == t["buyer"]["key_hash"],
+                       key_mismatch=onchain["keyHash"] not in ("", "0" * 64, t["buyer"]["key_hash"]),
+                       balance_wei=str(onchain["balance"]), shortfall_wei=str(max(0, int(t["amount_wei"]) - onchain["balance"])))
         checks = verdict.checks + [
-            dict(label="Registered buyer key", ok=onchain["keyHash"] == t["buyer"]["key_hash"], detail="Compared with the local test ledger"),
+            dict(label="Registered buyer key", ok=onchain["keyHash"] == t["buyer"]["key_hash"], detail="An escrow deposit registers the buyer key automatically" if not onchain["keyHash"] else "Compared with the local test ledger"),
             dict(label="Available balance", ok=onchain["balance"] >= int(t["amount_wei"]) or bool(r.settlement), detail="Balance is checked again at settlement; no offline reservation"),
             dict(label="Sequence number", ok=not self.chain.seq_used(t["buyer"]["evm_address"], t["seq"]) or bool(r.settlement), detail=f"Sequence {t['seq']} is consumed once"),
             dict(label="Audit chain", ok=party.store.verify_log(), detail="Local hash chain and saved head checked"),
@@ -110,7 +120,7 @@ class App:
             ok = bool(sig and verify(unb64(t[role]["public_key"]), message, sig, purpose))
             seals.append(dict(purpose=purpose, label=label, signer=t[role]["name"], bytes=len(unb64(sig)) if sig else 0, ok=ok, present=bool(sig)))
         return dict(escrow_id=r.escrow_id, terms=t, state=r.state, role="buyer" if t["buyer"]["name"] == party.identity.name else "seller",
-                    delivery=r.delivery, acceptance=r.acceptance, cancellation=r.cancellation, settlement=r.settlement, rejection=r.rejection,
+                    delivery=r.delivery, acceptance=r.acceptance, cancellation=r.cancellation, settlement=r.settlement, rejection=r.rejection, funding=funding,
                     verification=verdict.asdict(), checks=checks, seals=seals, now=self.now(),
                     activity=[x for x in party.store.audit() if x["escrow_id"] == r.escrow_id], bundle=export_bundle(r) if include_payload else r.bundle(include_payload=False))
 
@@ -308,6 +318,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.app.chain.withdraw(party.identity.evm_address, amount)
                     a.update_funds(username, amount)
             party.store.log(route.replace("/", "_"), data={"amount_wei": str(amount)})
+            if route in ("wallet/deposit", "withdraw"):
+                self.app.notify_funding(party)
             return self.send(200, {"ok": True, "amount_wei": str(amount)})
         if route == "escrows":
             if not post:
@@ -371,9 +383,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, dict(sha256=sha256_bytes(raw), size=len(raw)))
         if route == "reconcile" and post:
             self.app.chain_required(username)
-            self.body()
+            target = self.body().get("escrow_id")
+            if target is not None:
+                if not isinstance(target, str) or not re.fullmatch(r"[0-9a-f]{64}", target):
+                    raise HTTPError(400, "Invalid agreement ID")
+                self.app.record(party, target)
             self.app.mirror(party)
-            results = reconcile(party, self.app.chain)
+            results = reconcile(party, self.app.chain, escrow_id=target)
             self.app.mirror_peer_settlements(party, results)
             return self.send(200, {"results": results})
         if route == "chain" and not post:

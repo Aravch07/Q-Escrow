@@ -46,7 +46,7 @@ async function shot(page,name){await page.waitForFunction(()=>!document.querySel
   await a.keyboard.press('Escape');
   await a.locator('#create-dialog').waitFor({state:'hidden'});
   await a.getByRole('button',{name:'＋ Create escrow',exact:true}).click();
-  await a.locator('#seller').selectOption('bob');await a.locator('#amount').fill('1');
+  await a.locator('#seller').fill('bob');await a.locator('#amount').fill('1');
   await a.locator('#description').fill('Editorial identity files, final delivery');
   await shot(a,'desktop-create-details');await a.getByRole('button',{name:'Continue to file check',exact:true}).click();
   const deliveryBytes=Buffer.from('Final identity files. Delivery verified by both parties.\n');
