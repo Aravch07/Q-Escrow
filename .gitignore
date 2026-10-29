@@ -3,7 +3,7 @@ __pycache__/
 .pytest_cache/
 .venv*/
 node_modules/
-package-lock.json
+*-lock.json
 .qa-*/
 data/
 *.sqlite3*
@@ -20,8 +20,8 @@ ledger.json
 .env.*
 docs/screenshots/failure-*.png
 *.log
-.agents/
-skills-lock.json
+/.*/
+!/.github/
 docs/hosted-checks/
 
 .vercel
