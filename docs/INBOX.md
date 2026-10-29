@@ -60,3 +60,8 @@ Executed before publication: **21 unit cases passed**, **three Postgres cases
 passed** (including existing private access, notes and export behaviour), and the
 two-browser inbox check passed with no JavaScript errors. Layouts fitted 320,
 390, 768 and 1440 pixels. Results are in `docs/inbox-checks/`.
+
+The same two-browser check also passed against the production site on
+29 October 2026, including account creation, real agreement updates and live
+inbox refreshes, with no JavaScript errors. See
+`docs/inbox-checks/public-results.json`.

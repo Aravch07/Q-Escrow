@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checks": [
+    "one named card per agreement grouped by current status",
+    "counterparty, creator and actual update sender shown",
+    "status, @username search and unread filters work",
+    "historical updates stay inside their agreement",
+    "unsafe title text is escaped",
+    "live status moves retain filters without reloading",
+    "new arrivals appear under unread-only after marking read",
+    "account notifications are separate",
+    "320/390/768/1440 layouts fit"
+  ],
+  "consoleErrors": []
+}
