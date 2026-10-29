@@ -67,7 +67,7 @@ disable decorative motion. Layouts are checked at 320, 390, 768 and 1440 pixels.
 ## Roll back the source
 
 The old release is preserved on
-[`codex/pre-redesign-2026-10-29`](https://github.com/Aravch07/Q-Escrow/tree/codex/pre-redesign-2026-10-29),
+[`archive/pre-redesign-2026-10-29`](https://github.com/Aravch07/Q-Escrow/tree/archive/pre-redesign-2026-10-29),
 at commit `990c82315a9abfd89c3c433c5b6a001e429c66e2`.
 The redesign introduces no database schema migration.
 

@@ -7,7 +7,6 @@ docs/screenshots
 wheelhouse
 tests
 .env*
-.agents
-.claude
+.*
 node_modules
 *.log

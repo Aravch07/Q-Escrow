@@ -20,8 +20,8 @@ ledger.json
 .env.*
 docs/screenshots/failure-*.png
 *.log
-.agents/
-skills-lock.json
+/.*/
+!/.github/
 docs/hosted-checks/
 
 .vercel

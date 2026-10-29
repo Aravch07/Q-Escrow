@@ -159,7 +159,7 @@ custody. See the architecture and developer guide for the trust model and limits
 | [Release verification](docs/PROTOTYPE-VERIFICATION.md) | 91 passed Python checks and live browser workflow results |
 
 The earlier release is preserved on
-[`codex/pre-redesign-2026-10-29`](https://github.com/Aravch07/Q-Escrow/tree/codex/pre-redesign-2026-10-29)
+[`archive/pre-redesign-2026-10-29`](https://github.com/Aravch07/Q-Escrow/tree/archive/pre-redesign-2026-10-29)
 for source rollback.
 
 Wallet funds must be deposited into escrow before a payment can finish. A missing
