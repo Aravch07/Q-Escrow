@@ -112,3 +112,12 @@ class Store:
                 return db.execute("SELECT count,hash FROM head WHERE id=1").fetchone() == (count, prev)
         except (ValueError, KeyError, TypeError):
             return False
+
+    def updates(self, after=None):
+        with self.connect() as db:
+            count, digest = db.execute("SELECT count,hash FROM head WHERE id=1").fetchone()
+            rows = [] if after is None else db.execute(
+                "SELECT body FROM audit WHERE id>? ORDER BY id DESC LIMIT 20", (after,)).fetchall()
+        events = [{k: event[k] for k in ("id", "at", "event", "escrow_id", "data")}
+                  for event in (json.loads(row[0]) for row in rows)]
+        return {"count": count, "revision": str(count) + ":" + digest, "events": events}

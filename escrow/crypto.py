@@ -10,6 +10,7 @@ CONTEXTS = {
     "seller": b"PQE-v1/terms/seller",
     "delivery": b"PQE-v1/delivery",
     "acceptance": b"PQE-v1/acceptance",
+    "cancellation": b"PQE-v1/cancellation",
 }
 
 

@@ -20,6 +20,12 @@
 
 ## The working account flow
 
+Workspace changes now appear automatically, with notifications for incoming
+evidence and payment outcomes. Either party can choose **Cancel agreement**
+before settlement instead of waiting for expiry. See
+[live updates and cancellation](LIVE-UPDATES-AND-CANCELLATION.md) for behaviour
+and the independent wallet-lock rules.
+
 Register → deposit test funds → create an agreement with the other account →
 both parties sign → seller chooses the delivery → mismatched reference files are
 blocked → buyer reviews and signs a decision → reconnect and finish payment →

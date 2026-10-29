@@ -97,6 +97,47 @@ class World:
         return c
 
 
+@pytest.mark.parametrize('role', ['alice', 'bob'])
+def test_cancel_and_live_revision_are_shared_without_payment(web, role):
+    a, b, outsider = web.client('alice'), web.client('bob'), web.client('carol')
+    assert web.client().get('updates')[0] == 401
+    baseline = b.get('updates')[1]
+    assert b.get('updates')[1] == baseline
+    id = create(a)
+    changed = b.get('updates?after=' + str(baseline['count']))[1]
+    assert changed['revision'] != baseline['revision']
+    assert changed['events'][0]['data']['state'] == 'PROPOSED'
+    assert outsider.post('escrows/' + id + '/cancel')[0] == 404
+    assert b.post('escrows/' + id + '/countersign')[0] == 200
+    assert b.post('escrows/' + id + '/deliver', b'reviewable file', raw=True)[0] == 200
+    before = a.get('wallet')[1]['account']
+    actor = a if role == 'alice' else b
+    status, record, _ = actor.post('escrows/' + id + '/cancel')
+    assert status == 200, record
+    assert record['state'] == 'CANCELLED' and record['settlement']['outcome'] == 'CANCELLED'
+    assert a.get('escrows/' + id)[1]['cancellation'] == b.get('escrows/' + id)[1]['cancellation']
+    assert a.get('wallet')[1]['account'] == before
+    assert b.get('wallet')[1]['account']['claimable'] == '0'
+    stable = actor.get('updates')[1]
+    assert actor.post('escrows/' + id + '/cancel')[0] == 200
+    assert actor.get('updates')[1] == stable
+    assert b.post('escrows/' + id + '/deliver', b'late file', raw=True)[0] == 400
+    assert a.post('escrows/' + id + '/accept', {'decision':'release'})[0] == 400
+    assert a.post('reconcile')[1]['results'] == []
+    assert a.post('verify-bundle', {'bundle':a.get('escrows/' + id + '/bundle')[1]})[1]['outcome'] == 'CANCELLED'
+    assert a.get('updates?after=invalid')[0] == 400
+
+
+def test_cancel_unfunded_proposal_only_closes_selected_agreement(web):
+    a = web.client()
+    assert a.post('register', {'username':'new_buyer','password':'password123'})[0] == 201
+    assert a.login('new_buyer', 'password123')[0] == 200
+    first, second = create(a), create(a)
+    assert a.post('escrows/' + first + '/cancel')[0] == 200
+    assert a.get('escrows/' + second)[1]['state'] == 'PROPOSED'
+    assert a.get('wallet')[1]['account']['balance'] == '0'
+
+
 @pytest.fixture
 def web(tmp_path):
     world = World(tmp_path / 'site')
@@ -126,7 +167,7 @@ def accepted(a,b,**extra):
 
 def test_static_security_headers_and_csrf(web):
     c = web.client()
-    for path in ('/','/app.js','/style.css','/future.css','/analytics.js','/showcase.js','/experience.js','/assets/sample-workspace.json','/assets/agreement-link.png','/assets/SpaceGrotesk.ttf'):
+    for path in ('/','/app.js','/style.css','/future.css','/analytics.js','/showcase.js','/experience.js','/live.js','/assets/sample-workspace.json','/assets/agreement-link.png','/assets/SpaceGrotesk.ttf'):
         status, body, headers = c.request(path)
         assert status == 200 and len(canonical_json(body) if isinstance(body, dict) else body) > 500
         assert "default-src 'self'" in headers['Content-Security-Policy']

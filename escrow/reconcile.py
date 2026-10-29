@@ -29,6 +29,12 @@ def verify_offline(record, now):
         check("Structure and signature contexts", False, str(exc))
         return Verdict("REJECT", str(exc), checks)
     t, d, a = record.terms, record.delivery, record.acceptance
+    if record.cancellation:
+        c = record.cancellation
+        if c["cancelled_at"] > now:
+            return Verdict("REJECT", "Cancellation is dated in the future", checks)
+        check("Signed cancellation", True, "Cancelled by the " + c["cancelled_by"])
+        return Verdict("CANCELLED", "Agreement cancelled by the " + c["cancelled_by"], checks)
     if t["created_at"] > now or (d and d["delivered_at"] > now) or (a and a["accepted_at"] > now):
         check("Clock", False, "Signed artifact is dated in the future")
         return Verdict("REJECT", "Signed artifact is dated in the future", checks)
@@ -62,11 +68,12 @@ def verify_offline(record, now):
     return Verdict("RELEASE", "Buyer accepted verified delivery", checks)
 
 
-def reconcile(party, chain):
+def reconcile(party, chain, escrow_id=None):
     """Strict core replay behavior; the website separately mirrors confirmed peer settlements."""
     with party.store.lock:
-        pending = [r for r in party.store.all() if not r.settlement and not r.rejection]
-        counts = Counter((r.terms["buyer"]["evm_address"], r.terms["seq"]) for r in pending)
+        all_pending = [r for r in party.store.all() if not r.settlement and not r.rejection]
+        pending = [r for r in all_pending if escrow_id is None or r.escrow_id == escrow_id]
+        counts = Counter((r.terms["buyer"]["evm_address"], r.terms["seq"]) for r in all_pending)
         results = []
         for r in sorted(pending, key=lambda r: (r.terms["buyer"]["evm_address"], r.terms["seq"], r.escrow_id)):
             t = r.terms
@@ -80,11 +87,11 @@ def reconcile(party, chain):
                     verdict = Verdict("REJECT", "Double spend: sequence already used", verdict.checks)
                 else:
                     account = chain.account(t["buyer"]["evm_address"])
-                    if account["keyHash"] != t["buyer"]["key_hash"]:
+                    if account["keyHash"] != t["buyer"]["key_hash"] and not (r.cancellation and account["keyHash"] in ("", "0" * 64)):
                         verdict = Verdict("REJECT", "Buyer key not registered or mismatched", verdict.checks)
                     elif verdict.outcome == "RELEASE" and account["balance"] < int(t["amount_wei"]):
                         verdict = Verdict("REJECT", "Insufficient escrow balance", verdict.checks)
-            if verdict.outcome in ("RELEASE", "REFUND"):
+            if verdict.outcome in ("RELEASE", "REFUND", "CANCELLED"):
                 try:
                     bundle = export_bundle(r)
                     # Verify the exact byte snapshot committed to the evidence hash.
@@ -92,7 +99,11 @@ def reconcile(party, chain):
                     # must not become unverified settlement evidence.
                     record_from_bundle(bundle)
                     evidence = sha256_bytes(canonical_json(bundle))
-                    r.settlement = chain.settle(r.escrow_id, t["buyer"]["evm_address"], t["seller"]["evm_address"],
+                    if r.cancellation and hasattr(chain, "cancel"):
+                        r.settlement = chain.cancel(r.escrow_id, t["buyer"]["evm_address"], t["seller"]["evm_address"],
+                                                    int(t["amount_wei"]), t["seq"], t["buyer"]["key_hash"], evidence)
+                    else:
+                        r.settlement = chain.settle(r.escrow_id, t["buyer"]["evm_address"], t["seller"]["evm_address"],
                                                 int(t["amount_wei"]), t["seq"], t["buyer"]["key_hash"],
                                                 verdict.outcome == "RELEASE", evidence)
                     party.store.put(r, "settled_" + r.settlement["note"])

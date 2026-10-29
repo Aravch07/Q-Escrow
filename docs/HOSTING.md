@@ -20,6 +20,9 @@ the ledger into a live Ethereum contract or real-money custody service.
 
 ## Hosted features
 
+Live updates and immediate cancellation are described in
+[the workspace update guide](LIVE-UPDATES-AND-CANCELLATION.md).
+
 * Persistent registration, password sign-in, profiles and account-specific workspaces.
 * Encrypted, expiring signing sessions that work across server instances. Settings
   lists sessions and can revoke one device or all other devices. Password changes

@@ -181,6 +181,7 @@ Unix seconds. Responses contain either the result or `{"error":"explanation"}`.
 | POST | `logout` | `{}` → end current session |
 | POST | `password` | `{old_password,new_password}` → re-seal key, end all sessions |
 | GET | `me` | Public identity, online flag, unlock flag, app time, minimum lock |
+| GET | `updates?after={audit_id}` | Own revision and recent event metadata; read-only live-update check |
 | POST | `online` | `{online: true/false}` → chain-link preference |
 | GET | `users` | Public descriptors only |
 | GET | `wallet` | Test funds, registered ledger account and claimable balance |
@@ -192,6 +193,7 @@ Unix seconds. Responses contain either the result or `{"error":"explanation"}`.
 | POST | `escrows/{id}/countersign` | `{}`; seller, proposed, before expiry |
 | POST | `escrows/{id}/deliver` | Raw file body, URL-encoded `X-Filename`; seller, locked |
 | POST | `escrows/{id}/accept` | `{decision:"release"/"refund"}`; buyer, delivered |
+| POST | `escrows/{id}/cancel` | `{}`; either party, unfinished, online; signed immediate cancellation |
 | GET | `escrows/{id}/download` | Attachment bytes; either party |
 | GET | `escrows/{id}/bundle` | Full signed JSON attachment; either party |
 | POST | `verify-bundle` | Full bundle or `{bundle: ...}` → offline verdict and checks |

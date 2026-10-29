@@ -31,7 +31,7 @@ document.addEventListener('click',event=>{
  if(!runtime.showcase)return;
  const exit=event.target.closest('[data-action="logout"]');if(exit){event.preventDefault();event.stopImmediatePropagation();location.href='/';return;}
  const button=event.target.closest('[data-action]');
- if(button&&['claim','reconcile','release','refund','countersign','attack','lab-run-all','lab-time-preset'].includes(button.dataset.action)){
+ if(button&&['cancel-agreement','claim','reconcile','release','refund','countersign','attack','lab-run-all','lab-time-preset'].includes(button.dataset.action)){
   event.preventDefault();event.stopImmediatePropagation();createAccountPrompt();return;
  }
  const link=event.target.closest('a[href]'),match=link?.getAttribute('href')?.match(/^\/api\/escrows\/([0-9a-f]{64})\/(bundle|download)$/);

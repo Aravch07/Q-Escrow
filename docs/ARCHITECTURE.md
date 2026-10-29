@@ -88,6 +88,7 @@ and optional expected hash. It reports checks with a verdict and explanation.
 |---|---|
 | Bad terms/ID/key hash/signature/dependency/binding | REJECT |
 | Signed artifact in the future | REJECT |
+| Valid cancellation signed by either named party | CANCELLED |
 | Delivered payload absent, altered, or wrong length | REJECT |
 | No delivery yet, before expiry | HOLD |
 | No delivery at expiry or later | REFUND |
@@ -98,7 +99,11 @@ and optional expected hash. It reports checks with a verdict and explanation.
 | Buyer signs refund, or release is dated at/after expiry | REFUND |
 | Intact timely delivery and timely buyer release | RELEASE |
 
-Integrity is checked before expected-hash and deadline refunds: a corrupted
+Cancellation is an independent terminal decision; its signature and timestamp
+are checked before the normal delivery/payment policy. See
+[cancellation and live updates](LIVE-UPDATES-AND-CANCELLATION.md).
+
+For non-cancelled agreements, integrity is checked before expected-hash and deadline refunds: a corrupted
 stored file is rejected for review, even when a refund might otherwise apply.
 Once a timely release is signed, it may be settled after expiry. Before signing
 release, the buyer hashes the actual received vault file (or an explicitly

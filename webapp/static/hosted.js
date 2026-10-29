@@ -71,7 +71,7 @@ updateEscrowResults=function(){
 function decorateDeadlines(){
  if(!runtime.hosted)return;
  for(const link of document.querySelectorAll('#escrow-results .row-title')){
-  const r=escrowRecords.find(record=>link.hash.endsWith(record.escrow_id));if(!r||['SETTLED','REJECTED'].includes(r.state))continue;
+  const r=escrowRecords.find(record=>link.hash.endsWith(record.escrow_id));if(!r||['SETTLED','REJECTED','CANCELLED'].includes(r.state))continue;
   const hours=(r.terms.expires_at-me.now)/3600,span=document.createElement('span');span.className='deadline-note'+(hours<24?' soon':'');
   span.textContent=hours<=0?'Deadline passed':hours<24?`Due in ${Math.max(1,Math.ceil(hours))}h`:'Due '+new Date(r.terms.expires_at*1000).toLocaleDateString();link.parentElement.append(span);
  }
@@ -80,11 +80,11 @@ async function updateInboxBadge(){
  if(!runtime.hosted||!me||document.hidden)return;
  const name=me.identity.name,{unread}=await api('notifications');if(me?.identity.name!==name)return;
  const badge=$('#inbox-count');if(badge){badge.textContent=unread>99?'99+':String(unread);badge.hidden=unread===0;}
- if(lastUnread>=0&&unread>lastUnread)toast('New workspace activity. Open your inbox to see what changed.');lastUnread=unread;
+ lastUnread=unread;
 }
 async function inboxPage(){
  const {events}=await api('notifications');
- const names={account_created:'Your workspace is ready',proposed:'An agreement was created',countersigned:'The terms were signed',delivered:'A delivery is ready',decision_release:'Payment was approved',decision_refund:'A refund was requested',settled_release:'Payment completed',settled_refund:'Refund completed',bundle_imported:'New agreement evidence',peer_settlement_observed:'Settlement confirmed',claim:'Earnings claimed',wallet_deposit:'Funds deposited'};
+ const names={account_created:'Your workspace is ready',proposed:'An agreement was created',countersigned:'The terms were signed',delivered:'A delivery is ready',decision_release:'Payment was approved',decision_refund:'A refund was requested',settled_release:'Payment completed',settled_refund:'Refund completed',agreement_cancelled:'Agreement cancelled',settled_cancelled:'Cancellation recorded',bundle_imported:'New agreement evidence',peer_settlement_observed:'Settlement confirmed',claim:'Earnings claimed',wallet_deposit:'Funds deposited'};
  return head('Keep things moving','Your inbox','Updates from your agreements, deliveries, and payments.','<button class="secondary" data-hosted="read-inbox">Mark all as read</button>')+`<section class="card inbox-list">${events.map(e=>`<article class="inbox-item ${e.unread?'unread':''}"><span class="event-icon">${icon(e.event.includes('settled')?'check':'bell')}</span><div><strong>${esc(names[e.event]||e.event.replaceAll('_',' '))}</strong><p>${esc(stamp(e.at))}</p>${e.escrow_id?`<a class="text-link" href="#escrows/${e.escrow_id}">Open agreement ${icon('arrow')}</a>`:''}</div>${e.unread?'<span class="unread-dot" aria-label="Unread"></span>':''}</article>`).join('')||'<div class="empty"><h3>You’re all caught up.</h3><p>Your agreement updates will appear here.</p></div>'}</section>`;
 }
 async function hostedSettings(){
@@ -114,7 +114,7 @@ async function enhanceHosted(){
   $('.list-toolbar').insertAdjacentHTML('afterend','<div class="advanced-filters"><label for="agreement-role">Your role<select id="agreement-role"><option value="all">All roles</option><option value="buyer">I’m buying</option><option value="seller">I’m delivering</option></select></label><label for="agreement-sort">Sort by<select id="agreement-sort"><option value="newest">Newest first</option><option value="deadline">Deadline first</option><option value="value">Highest amount</option></select></label><a class="button secondary" href="/api/export" download>Export CSV</a></div>');decorateDeadlines();
  }else if(page==='overview'){
   const {escrows}=await api('escrows');if(!active())return;
-  const settled=escrows.filter(r=>r.state==='SETTLED'),volume=settled.reduce((sum,r)=>sum+BigInt(r.terms.amount_wei),0n),due=escrows.filter(r=>!['SETTLED','REJECTED'].includes(r.state)&&r.terms.expires_at>me.now&&r.terms.expires_at-me.now<86400).length;
+  const settled=escrows.filter(r=>r.state==='SETTLED'),volume=settled.reduce((sum,r)=>sum+BigInt(r.terms.amount_wei),0n),due=escrows.filter(r=>!['SETTLED','REJECTED','CANCELLED'].includes(r.state)&&r.terms.expires_at>me.now&&r.terms.expires_at-me.now<86400).length;
   $('.balance-grid').insertAdjacentHTML('afterend',`<div class="workspace-insights"><div><span>${icon('check')}Completion rate</span><strong>${escrows.length?Math.round(settled.length/escrows.length*100):0}%</strong><small>${settled.length} of ${escrows.length} agreements</small></div><div><span>${icon('wallet')}Settled volume</span><strong>${eth(volume)} <small>test ETH</small></strong><small>Payments and refunds recorded</small></div><div><span>${icon('clock')}Due in 24 hours</span><strong>${due}</strong><small>Keep an eye on upcoming deadlines</small></div></div>`);
   if(!escrows.length)$('.welcome-guide')?.insertAdjacentHTML('afterend',`<div class="invite-strip">${icon('peer')}<div><strong>Bring your agreement partner.</strong><p>Ask them to create an account here, then choose their username when you create an escrow.</p></div><button class="secondary" data-hosted="copy-invite">Copy invite link</button></div>`);
   const footer=$('.workspace-footer');if(footer)footer.innerHTML=`<span>${icon('lock')}Online workspace · Post-quantum signatures</span><span>Test environment · No real funds</span>`;
@@ -126,7 +126,7 @@ async function enhanceHosted(){
  }
  await updateInboxBadge();
 }
-render=async function(){const expected=renderVersion+1;await originalRender();if(runtime.hosted&&me&&renderVersion===expected&&$('.workspace')&&!$('.loading'))try{await enhanceHosted();}catch(error){toast(error.message,true);}};
+render=async function(options){const expected=renderVersion+1;await originalRender(options);if(runtime.hosted&&me&&renderVersion===expected&&$('.workspace')&&!$('.loading'))try{await enhanceHosted();}catch(error){toast(error.message,true);}};
 
 document.addEventListener('change',event=>{if(event.target.id==='agreement-role'){hostedRole=event.target.value;updateEscrowResults();}if(event.target.id==='agreement-sort'){hostedSort=event.target.value;updateEscrowResults();}});
 document.addEventListener('click',async event=>{
@@ -150,5 +150,4 @@ document.addEventListener('submit',async event=>{
   else{await api(`escrows/${form.dataset.id}/notes`,{note:$('#private-note').value});if(form.isConnected)$('#note-status').textContent='Saved just for you.';}
  }catch(error){toast(error.message,true);}finally{button.disabled=false;}
 });
-setInterval(()=>{if(runtime.hosted&&me)updateInboxBadge().catch(()=>{});},30000);
 async function startWorkspace(){try{runtime=await api('config');}catch{}const query=new URL(location.href).searchParams;if(query.get('signup')==='1')authMode='register';if(query.get('demo')==='1'){try{await enableShowcase();}catch(error){toast(error.message,true);}}else if(runtime.preview&&query.get('sample')==='1'){try{await api('login',{username:'alice',password:'demo1234'});}catch{}}await render();}

@@ -34,6 +34,8 @@ computer. The current release uses **simulated test ETH**; no real money moves.
 | The exact deliverable | Automatic SHA-256 fingerprinting. A different file is blocked when a reference fingerprint is agreed. |
 | Proof at each step | ML-DSA-65 signatures on terms, delivery and decisions, with exportable evidence. |
 | A clear next action | Buyer and seller views that guide each person through agreement, delivery, review and payment. |
+| Updates without reloading | Incoming agreements, deliveries, decisions and payment outcomes appear automatically, with in-app notifications. |
+| A way to end unfinished work | Either party can cancel before settlement, without waiting for expiry. |
 | A view of your activity | Interactive charts, status breakdowns, role filters and CSV exports. |
 | A workspace that stays organised | Searchable agreements, private notes, an activity inbox, profiles and session controls online. |
 
@@ -143,6 +145,7 @@ custody. See the architecture and developer guide for the trust model and limits
 | Guide | Contents |
 | --- | --- |
 | [Product guide](docs/PROTOTYPE.md) | Tour, workflow, statistics and rollback instructions |
+| [Live updates and cancellation](docs/LIVE-UPDATES-AND-CANCELLATION.md) | Automatic notifications, draft preservation and ending unfinished agreements |
 | [Developer guide](docs/DEVELOPMENT.md) | Setup, CLI, repository layout, EVM integration and tests |
 | [Hosting](docs/HOSTING.md) | Deployment, persistence, accounts and configuration |
 | [Architecture](docs/ARCHITECTURE.md) | Protocol, signatures, storage and trust boundaries |

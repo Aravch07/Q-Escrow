@@ -217,6 +217,12 @@ class CloudStore:
     def audit(self):
         return [{**row["body"], "hash": row["hash"]} for row in self.connection.execute("SELECT body,hash FROM pqe_audit WHERE owner=%s ORDER BY id", (self.owner,))]
 
+    def updates(self, after=None):
+        row = self.connection.execute("SELECT count,hash FROM pqe_heads WHERE owner=%s", (self.owner,)).fetchone()
+        events = [] if after is None else [r[0] for r in self.connection.execute(
+            "SELECT body FROM pqe_audit WHERE owner=%s AND id>%s AND id<=%s ORDER BY id DESC LIMIT 20", (self.owner, after, row[0]))]
+        return {"count": row[0], "revision": str(row[0]) + ":" + row[1], "events": events}
+
     def verify_log(self):
         previous, count = "", 0
         for entry in self.audit():

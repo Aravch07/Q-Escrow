@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "times": {
+    "newAgreementMs": 2587,
+    "deliveryMs": 2483,
+    "cancellationMs": 1485,
+    "paymentMs": 1858
+  },
+  "checks": [
+    "incoming agreements and deliveries appear without reload",
+    "open draft survives incoming delivery and applies after closing",
+    "seller and buyer can cancel immediately",
+    "counterparty sees cancellation and payment automatically",
+    "settled payments cannot be cancelled",
+    "search and filters survive background updates",
+    "idle checks do not reload full workspace",
+    "connection failures reconnect",
+    "320/390/1440 layouts fit"
+  ],
+  "consoleErrors": []
+}

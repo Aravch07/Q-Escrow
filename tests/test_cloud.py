@@ -230,3 +230,73 @@ def test_upload_ownership_parts_and_storage_budget(hosted):
         connection.execute("INSERT INTO pqe_files VALUES(%s,%s,%s)", ("a" * 64, b"", 600 * 1024 * 1024))
     result = post(owner, "uploads/start", dict(size=1, filename="one-byte.json", purpose="verify"))
     assert result.status_code == 413 and "storage allowance" in result.json["error"]
+
+
+def test_cancellation_and_read_only_live_updates(hosted):
+    app, factory, connect = hosted
+    buyer, seller, outsider = account(app, 'buyer'), account(app, 'seller'), account(app, 'outsider')
+    assert app.test_client().get('/api/updates').status_code == 401
+    initial = seller.get('/api/updates').json
+    assert seller.get('/api/updates').json == initial
+    for actor in (seller, buyer):
+        proposal = post(buyer, 'escrows', dict(seller='seller',amount_wei=str(10**18),description='Cancelable online',expires_at=int(time.time()) + 3600))
+        assert proposal.status_code == 201, proposal.json
+        id = proposal.json['escrow_id']
+        updates = seller.get('/api/updates?after=' + str(initial['count'])).json
+        assert updates['revision'] != initial['revision']
+        assert updates['events'][0]['data']['state'] == 'PROPOSED'
+        assert post(outsider, f'escrows/{id}/cancel').status_code == 404
+        if actor is buyer:
+            assert post(seller, f'escrows/{id}/countersign').status_code == 200
+            uploaded = upload(seller, b'saved delivery', id)
+            assert post(seller, f'escrows/{id}/deliver-upload', {'upload_id':uploaded}).status_code == 200
+        before = buyer.get('/api/wallet').json
+        result = post(actor, f'escrows/{id}/cancel')
+        assert result.status_code == 200, result.json
+        assert result.json['state'] == 'CANCELLED'
+        assert buyer.get('/api/wallet').json['account'] == before['account']
+        assert buyer.get(f'/api/escrows/{id}').json['state'] == seller.get(f'/api/escrows/{id}').json['state'] == 'CANCELLED'
+        assert recreate(factory, actor).get(f'/api/escrows/{id}').json['state'] == 'CANCELLED'
+        artifact = actor.get(f'/api/escrows/{id}/artifact').json['bundle']
+        assert artifact['cancellation']['escrow_id'] == id
+        assert post(actor, f'escrows/{id}/cancel').status_code == 200
+        assert post(seller, 'uploads/start', dict(size=1,filename='late.txt',purpose='delivery',escrow_id=id)).status_code == 409
+    assert seller.get('/api/updates?after=bad').status_code == 400
+    assert post(buyer, 'reconcile').json['results'] == []
+    # Polling must not create audits, sessions, or acquire the writer lock.
+    with connect() as connection:
+        before = connection.execute('SELECT COUNT(*) FROM pqe_audit').fetchone()[0]
+    assert seller.get('/api/updates').status_code == 200
+    with connect() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM pqe_audit').fetchone()[0] == before
+    reader = recreate(factory, seller)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with connect() as writer:
+            writer.execute('SELECT pg_advisory_xact_lock(%s)', (cloud.WRITE_LOCK,))
+            assert executor.submit(reader.get, '/api/updates').result(timeout=20).status_code == 200
+    assert all(event['escrow_id'] is None for event in outsider.get('/api/updates?after=0').json['events'])
+
+
+def test_cancel_racing_payment_has_one_final_outcome(hosted):
+    app, factory, _ = hosted
+    payload = b'concurrent cancellation evidence'
+    buyer, seller, id = setup_agreement(app, payload)
+    uploaded = upload(seller, payload, id)
+    assert post(seller, f'escrows/{id}/deliver-upload', {'upload_id':uploaded}).status_code == 200
+    assert post(buyer, f'escrows/{id}/accept', {'decision':'release'}).status_code == 200
+    first, second = recreate(factory, buyer), recreate(factory, seller)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        cancel_future = executor.submit(post, second, f'escrows/{id}/cancel')
+        settle_future = executor.submit(post, first, 'reconcile')
+        cancelled, settled = cancel_future.result(), settle_future.result()
+    assert cancelled.status_code in (200,409) and settled.status_code == 200
+    a, b = buyer.get(f'/api/escrows/{id}').json, seller.get(f'/api/escrows/{id}').json
+    assert a['state'] == b['state']
+    snapshot = buyer.get('/api/chain').json
+    assert len(snapshot['settlements']) == 1
+    if a['state'] == 'CANCELLED':
+        assert cancelled.status_code == 200
+        assert snapshot['settlements'][id]['release'] is False
+    else:
+        assert a['state'] == 'SETTLED' and cancelled.status_code == 409
+        assert snapshot['settlements'][id]['release'] is True

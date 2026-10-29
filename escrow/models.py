@@ -12,9 +12,12 @@ class Record:
     payload_path: str | None = None
     settlement: dict | None = None
     rejection: str | None = None
+    cancellation: dict | None = None
 
     @property
     def state(self):
+        if self.cancellation:
+            return "CANCELLED"
         if self.rejection:
             return "REJECTED"
         if self.settlement:
@@ -31,6 +34,8 @@ class Record:
         from .crypto import b64
         data = dict(format="PQE-v1", escrow_id=self.escrow_id, terms=self.terms,
                     signatures=self.signatures, delivery=self.delivery, acceptance=self.acceptance)
+        if self.cancellation is not None:
+            data["cancellation"] = self.cancellation
         if include_payload:
             data["payload"] = b64(Path(self.payload_path).read_bytes()) if self.payload_path else None
         return data

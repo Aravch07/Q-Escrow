@@ -75,7 +75,7 @@ def verify_signatures(record):
     validate_terms(t)
     if sha256_bytes(canonical_json(t)) != record.escrow_id:
         raise ValueError("Terms do not match escrow_id")
-    if not isinstance(s, dict) or set(s) - {"buyer", "seller", "delivery", "acceptance"} or not s.get("buyer"):
+    if not isinstance(s, dict) or set(s) - {"buyer", "seller", "delivery", "acceptance", "cancellation"} or not s.get("buyer"):
         raise ValueError("Buyer terms signature is required")
     for purpose, role in (("buyer", "buyer"), ("seller", "seller")):
         if purpose in s and not verify(unb64(t[role]["public_key"]), t, s[purpose], purpose):
@@ -107,6 +107,18 @@ def verify_signatures(record):
         _integer(a["accepted_at"], "accepted_at", d["delivered_at"], 2**53 - 1)
         if not verify(unb64(t["buyer"]["public_key"]), a, s["acceptance"], "acceptance"):
             raise ValueError("Invalid acceptance signature")
+    c = record.cancellation
+    if bool(c is not None) != bool(s.get("cancellation")):
+        raise ValueError("Cancellation and its signature must occur together")
+    if c is not None:
+        if not isinstance(c, dict) or set(c) != {"escrow_id", "cancelled_by", "cancelled_at"}:
+            raise ValueError("Invalid cancellation structure")
+        if c["escrow_id"] != record.escrow_id or c["cancelled_by"] not in ("buyer", "seller"):
+            raise ValueError("Invalid cancellation party or escrow")
+        earliest = a["accepted_at"] if a else d["delivered_at"] if d else t["created_at"]
+        _integer(c["cancelled_at"], "cancelled_at", earliest, 2**53 - 1)
+        if not verify(unb64(t[c["cancelled_by"]]["public_key"]), c, s["cancellation"], "cancellation"):
+            raise ValueError("Invalid cancellation signature")
     return True
 
 
@@ -114,7 +126,7 @@ def _role(party, record, role):
     expected = record.terms[role]
     if party.identity.descriptor() != expected:
         raise ValueError(f"Only the {role} can perform this action")
-    if record.settlement or record.rejection:
+    if record.settlement or record.rejection or record.cancellation:
         raise ValueError("This escrow is already final")
     verify_signatures(record)
 
@@ -197,6 +209,25 @@ def accept(party, escrow_id, decision, received_file=None):
         return r
 
 
+def cancel(party, escrow_id):
+    """Either named party may sign the cancellation of an unfinished agreement."""
+    with party.store.lock:
+        r = party.store.get(escrow_id)
+        descriptor = party.identity.descriptor()
+        role = next((role for role in ("buyer", "seller") if r.terms[role] == descriptor), None)
+        if role is None:
+            raise ValueError("Only the buyer or seller can cancel this agreement")
+        if r.cancellation:
+            verify_signatures(r)
+            return r
+        _role(party, r, role)
+        r.cancellation = dict(escrow_id=escrow_id, cancelled_by=role, cancelled_at=party.now())
+        r.signatures["cancellation"] = sign(party.identity.secret_key, r.cancellation, "cancellation")
+        verify_signatures(r)
+        party.store.put(r, "agreement_cancelled")
+        return r
+
+
 def export_bundle(record):
     return record.bundle()
 
@@ -204,11 +235,13 @@ def export_bundle(record):
 def record_from_bundle(bundle):
     if isinstance(bundle, (bytes, str)):
         bundle = json.loads(bundle)
-    if not isinstance(bundle, dict) or set(bundle) != {"format", "escrow_id", "terms", "signatures", "delivery", "acceptance", "payload"}:
+    required = {"format", "escrow_id", "terms", "signatures", "delivery", "acceptance", "payload"}
+    if not isinstance(bundle, dict) or not required <= bundle.keys() or bundle.keys() - required - {"cancellation"}:
         raise ValueError("Invalid signed bundle structure")
     if bundle["format"] != "PQE-v1":
         raise ValueError("Unsupported bundle format")
     r = Record(bundle["escrow_id"], bundle["terms"], dict(bundle["signatures"]), bundle["delivery"], bundle["acceptance"])
+    r.cancellation = bundle.get("cancellation")
     verify_signatures(r)
     payload = unb64(bundle["payload"]) if bundle["payload"] is not None else None
     if r.delivery:
@@ -229,12 +262,20 @@ def import_bundle(party, bundle):
         except ValueError:
             old = None
         if old:
+            if old.cancellation:
+                if old.terms != r.terms or any(old.signatures.get(k) != v for k, v in r.signatures.items()) or any(
+                        getattr(r, k) is not None and getattr(r, k) != getattr(old, k)
+                        for k in ("delivery", "acceptance", "cancellation")):
+                    raise ValueError("This agreement is cancelled; its evidence cannot change")
+                return old
+            if old.settlement and r.cancellation:
+                raise ValueError("A settled agreement cannot be cancelled")
             for purpose, signature in old.signatures.items():
                 if purpose in r.signatures and signature != r.signatures[purpose]:
                     raise ValueError(f"Equivocation: conflicting {purpose} signature")
             if old.terms != r.terms:
                 raise ValueError("Conflicting terms")
-            for field in ("delivery", "acceptance"):
+            for field in ("delivery", "acceptance", "cancellation"):
                 before, after = getattr(old, field), getattr(r, field)
                 if before is not None and after is not None and before != after:
                     raise ValueError(f"Equivocation: conflicting {field}")

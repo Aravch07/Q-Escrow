@@ -156,14 +156,14 @@ class LocalLedger(Chain):
             d["claimed"] += amount
         return amount
 
-    def settle(self, escrow_id, buyer, seller, amount, seq, buyer_key_hash, release, evidence_hash):
+    def settle(self, escrow_id, buyer, seller, amount, seq, buyer_key_hash, release, evidence_hash, *, cancelled=False):
         buyer, seller = address(buyer), address(seller)
         digest(escrow_id)
         digest(evidence_hash)
         digest(buyer_key_hash)
         uint(amount, True)
         uint(seq, True)
-        if type(release) is not bool or buyer == seller:
+        if type(release) is not bool or type(cancelled) is not bool or cancelled and release or buyer == seller:
             raise ValueError("Invalid settlement parties or outcome")
         with self.transaction() as d:
             if self.relayer not in d["relayers"]:
@@ -173,7 +173,7 @@ class LocalLedger(Chain):
             if str(seq) in d["seq_used"].get(buyer, []):
                 raise ValueError("Double spend: sequence already used")
             a = d["accounts"].get(buyer)
-            if not a or a["keyHash"] != buyer_key_hash:
+            if (not a and not cancelled) or a and a["keyHash"] != buyer_key_hash:
                 raise ValueError("Buyer key not registered or mismatched")
             if release:
                 if a["balance"] < amount:
@@ -183,8 +183,15 @@ class LocalLedger(Chain):
                 d["claimable"][seller] = d["claimable"].get(seller, 0) + amount
             result = dict(escrow_id=escrow_id, buyer=buyer, seller=seller, amount_wei=str(amount),
                           seq=seq, buyer_key_hash=buyer_key_hash, release=release,
-                          outcome="RELEASE" if release else "REFUND", note="release" if release else "refund",
+                          outcome="CANCELLED" if cancelled else "RELEASE" if release else "REFUND",
+                          note="cancelled" if cancelled else "release" if release else "refund",
                           evidence_hash=evidence_hash, settled_at=int(self.clock()))
             d["settlements"][escrow_id] = result
             d["seq_used"].setdefault(buyer, []).append(str(seq))
         return result
+
+    def cancel(self, escrow_id, buyer, seller, amount, seq, buyer_key_hash, evidence_hash):
+        # A relayer records the signed cancellation without moving funds. An
+        # unfunded proposal can be closed before its buyer has registered a key.
+        return self.settle(escrow_id, buyer, seller, amount, seq, buyer_key_hash, False,
+                           evidence_hash, cancelled=True)

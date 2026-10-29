@@ -4,7 +4,7 @@ shapes.chart='<path d="M3 3v18h18M7 16v-5m5 5V7m5 9v-8"/>';
 shapes.spark='<path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5Z"/>';
 const VAULT='/assets/agreement-link.png',KNOT='/assets/evidence-layers.png';
 let analysisRange=7,analysisMode='activity',analysisRole='all',insightData=null,chartObserver=null;
-const stateNames={pending:'Awaiting progress',checking:'Delivery & review',settled:'Payment released',refunded:'Refunded',review:'Needs review'};
+const stateNames={pending:'Awaiting progress',checking:'Delivery & review',settled:'Payment released',refunded:'Refunded',review:'Needs review',cancelled:'Cancelled'};
 brand=function(){return `<span class="brand-symbol quantum-symbol" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><path d="m20 3 15 8.5v17L20 37 5 28.5v-17L20 3Z"/><path d="m5 11.5 15 9 15-9M20 20.5V37M12.5 7.2 28 16v9l-8 4.5-8-4.5v-9l8-4.5 8 4.5"/></svg></span><span>PQ<span class="brand-slash">/</span>Escrow</span>`;};
 document.documentElement.dataset.accent=localStorage.getItem('pqe-accent')||'mint';
 
@@ -121,7 +121,7 @@ function enhanceExperience(){
 }
 const experienceAuth=authPage,experienceRender=render;
 authPage=function(){experienceAuth();enhanceAuthExperience();};
-render=async function(){chartObserver?.disconnect();const version=renderVersion+1;await experienceRender();if(me&&version===renderVersion)enhanceExperience();};
+render=async function(options){chartObserver?.disconnect();const version=renderVersion+1;await experienceRender(options);if(me&&version===renderVersion)enhanceExperience();};
 
 document.addEventListener('click',event=>{
  const button=event.target.closest('[data-experience]');if(!button)return;const action=button.dataset.experience;

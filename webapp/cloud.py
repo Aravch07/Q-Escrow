@@ -182,7 +182,7 @@ class CloudHandler(Handler):
                 record = self.saved(name, escrow_id)["body"]
                 if record["terms"]["seller"]["name"] != name:
                     raise HTTPError(403, "Only the seller can upload the delivery")
-                if record["delivery"] or record["acceptance"] or record["settlement"]:
+                if record["delivery"] or record["acceptance"] or record["settlement"] or record.get("cancellation"):
                     raise HTTPError(409, "This agreement already has a delivery or decision")
             conn.execute("DELETE FROM pqe_uploads WHERE created_at<%s", (self.app.now() - 3600,))
             active = conn.execute("SELECT COUNT(*),COALESCE(SUM(size),0) FROM pqe_uploads WHERE owner=%s", (name,)).fetchone()
@@ -243,7 +243,7 @@ class CloudHandler(Handler):
                 if not raw:
                     raise HTTPError(404, "Delivery file missing")
                 return self.send(200, bytes(raw[0]), "application/octet-stream")
-            return self.send(200, {"bundle": {"format": "PQE-v1", **{k: body[k] for k in ("escrow_id", "terms", "signatures", "delivery", "acceptance")}},
+            return self.send(200, {"bundle": {"format": "PQE-v1", **{k: body[k] for k in ("escrow_id", "terms", "signatures", "delivery", "acceptance")}, **({"cancellation": body["cancellation"]} if body.get("cancellation") else {})},
                                    "file": {"size": receipt["size"], "sha256": receipt["sha256"], "filename": receipt["filename"]} if receipt else None})
         if route == "lab/time":
             raise HTTPError(403, "The shared live clock cannot be changed. Attack lab experiments use isolated practice copies.")
@@ -289,6 +289,7 @@ def create_app(database_url=None, session_key=None):
     @app.get("/experience.js")
     @app.get("/analytics.js")
     @app.get("/showcase.js")
+    @app.get("/live.js")
     @app.get("/future.css")
     @app.get("/style.css")
     def static():
@@ -310,9 +311,29 @@ def create_app(database_url=None, session_key=None):
             key()
             with connect_database(database_url) as conn:
                 conn.execute("SELECT 1")
-            return jsonify(ok=True, storage="postgres", version="2.0.0")
+            return jsonify(ok=True, storage="postgres", version="2.1.0")
         except Exception:
             return jsonify(ok=False, error="Workspace storage is temporarily unavailable"), 503
+
+    @app.get("/api/updates")
+    def updates():
+        # Read-only polling: do not acquire the global write lock or unlock keys.
+        after = request.args.get("after")
+        if after is not None and (not after.isdecimal() or len(after) > 16):
+            return jsonify(error="Invalid update cursor"), 400
+        try:
+            token = sha256_bytes(request.cookies.get("pqe_session", "").encode())
+            with connect_database(database_url) as conn:
+                row = conn.execute("SELECT s.username,COALESCE(h.count,0) AS count,COALESCE(h.hash,'') AS hash FROM pqe_sessions s LEFT JOIN pqe_heads h ON h.owner=s.username WHERE s.token_hash=%s AND s.expires>%s", (token, int(time.time()))).fetchone()
+                if not row:
+                    return jsonify(error="Sign in to continue"), 401
+                events = [] if after is None else [r[0] for r in conn.execute(
+                    "SELECT body FROM pqe_audit WHERE owner=%s AND id>%s AND id<=%s ORDER BY id DESC LIMIT 20", (row["username"], int(after), row["count"]))]
+                events = [{k: event[k] for k in ("id", "at", "event", "escrow_id", "data")} for event in events]
+            return jsonify(count=row["count"], revision=str(row["count"]) + ":" + row["hash"], events=events)
+        except Exception:
+            logging.exception("Workspace update check failed")
+            return jsonify(error="Live updates are reconnecting"), 503
 
     @app.route("/api/<path:route>", methods=["GET", "POST"])
     def api(route):

@@ -15,7 +15,7 @@ from urllib.parse import unquote, urlsplit
 from escrow.chain import LocalLedger, ETH
 from escrow.crypto import canonical_json, sha256_bytes, b64, unb64
 from escrow.models import Record
-from escrow.protocol import (MAX_PAYLOAD, Party, propose, countersign, deliver, accept,
+from escrow.protocol import (MAX_PAYLOAD, Party, propose, countersign, deliver, accept, cancel,
                              export_bundle, import_bundle, record_from_bundle, filename)
 from escrow.reconcile import verify_offline, reconcile
 from escrow.store import Store
@@ -67,6 +67,14 @@ class App:
                 r.settlement = settled
                 party.store.put(r, "peer_settlement_observed")
 
+    def mirror_peer_settlements(self, party, results):
+        for result in results:
+            if result["outcome"] not in ("RELEASE", "REFUND", "CANCELLED"):
+                continue
+            record = party.store.get(result["escrow_id"])
+            other = "seller" if record.terms["buyer"]["name"] == party.identity.name else "buyer"
+            self.mirror(self.accounts.party(record.terms[other]["name"], public_only=True))
+
     def record(self, party, escrow_id):
         try:
             r = party.store.get(escrow_id)
@@ -90,16 +98,19 @@ class App:
                        and x.terms["seq"] == t["seq"] for x in party.store.all()) > 1
         checks.append(dict(label="Local sequence uniqueness", ok=not conflict, detail="Pending escrows cannot share a buyer sequence"))
         seals = []
-        for purpose, label, role in (("buyer", "Buyer terms", "buyer"), ("seller", "Seller terms", "seller"),
-                                     ("delivery", "Delivery", "seller"), ("acceptance", "Decision", "buyer")):
+        purposes = [("buyer", "Buyer terms", "buyer"), ("seller", "Seller terms", "seller"),
+                    ("delivery", "Delivery", "seller"), ("acceptance", "Decision", "buyer")]
+        if r.cancellation:
+            purposes.append(("cancellation", "Cancellation", r.cancellation["cancelled_by"]))
+        for purpose, label, role in purposes:
             sig = r.signatures.get(purpose)
             # Per-seal verification, rather than claiming success from signature presence.
             from escrow.crypto import verify
-            message = t if purpose in ("buyer", "seller") else r.delivery if purpose == "delivery" else r.acceptance
+            message = t if purpose in ("buyer", "seller") else r.delivery if purpose == "delivery" else r.cancellation if purpose == "cancellation" else r.acceptance
             ok = bool(sig and verify(unb64(t[role]["public_key"]), message, sig, purpose))
             seals.append(dict(purpose=purpose, label=label, signer=t[role]["name"], bytes=len(unb64(sig)) if sig else 0, ok=ok, present=bool(sig)))
         return dict(escrow_id=r.escrow_id, terms=t, state=r.state, role="buyer" if t["buyer"]["name"] == party.identity.name else "seller",
-                    delivery=r.delivery, acceptance=r.acceptance, settlement=r.settlement, rejection=r.rejection,
+                    delivery=r.delivery, acceptance=r.acceptance, cancellation=r.cancellation, settlement=r.settlement, rejection=r.rejection,
                     verification=verdict.asdict(), checks=checks, seals=seals, now=self.now(),
                     activity=[x for x in party.store.audit() if x["escrow_id"] == r.escrow_id], bundle=export_bundle(r) if include_payload else r.bundle(include_payload=False))
 
@@ -207,6 +218,7 @@ class Handler(BaseHTTPRequestHandler):
                           "/experience.js": ("experience.js", "text/javascript; charset=utf-8"),
                           "/analytics.js": ("analytics.js", "text/javascript; charset=utf-8"),
                           "/showcase.js": ("showcase.js", "text/javascript; charset=utf-8"),
+                          "/live.js": ("live.js", "text/javascript; charset=utf-8"),
                           "/future.css": ("future.css", "text/css; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8")}
                 if path.startswith("/assets/"):
@@ -252,7 +264,12 @@ class Handler(BaseHTTPRequestHandler):
         if route == "me" and not post:
             return self.send(200, dict(identity=party.identity.descriptor(), online=a.online(username),
                                        now=self.app.now(), unlocked=party.identity.secret_key is not None,
-                                       demo=True, min_lock=self.app.chain.snapshot()["min_lock"]))
+                                       demo=True, min_lock=self.app.chain.snapshot()["min_lock"], updates=party.store.updates()))
+        if route == "updates" and not post:
+            after = dict(item.split("=", 1) for item in urlsplit(self.path).query.split("&") if "=" in item).get("after")
+            if after is not None and (not after.isdecimal() or len(after) > 16):
+                raise HTTPError(400, "Invalid update cursor")
+            return self.send(200, party.store.updates(int(after) if after is not None else None))
         if route == "password" and post:
             data = self.body()
             a.change_password(username, data.get("old_password"), data.get("new_password"))
@@ -315,6 +332,20 @@ class Handler(BaseHTTPRequestHandler):
                         raise HTTPError(404, "No delivered file yet")
                     return self.send(200, Path(r.payload_path).read_bytes(), "application/octet-stream",
                                      {"Content-Disposition": f'attachment; filename="{filename(r.delivery["filename"])}"'})
+            elif action == "cancel":
+                self.app.chain_required(username)
+                self.body()
+                if r.cancellation and r.settlement:
+                    return self.send(200, self.app.detail(party, r))
+                if r.settlement or r.rejection:
+                    raise HTTPError(409, "This agreement is already final and cannot be cancelled")
+                r = cancel(party, escrow_id)
+                self.app.peer(party, r)
+                results = reconcile(party, self.app.chain, escrow_id=escrow_id)
+                if not results or results[0]["outcome"] != "CANCELLED":
+                    raise HTTPError(409, results[0]["reason"] if results else "Cancellation could not be recorded")
+                self.app.mirror_peer_settlements(party, results)
+                return self.send(200, self.app.detail(party, party.store.get(escrow_id)))
             elif action in ("countersign", "deliver", "accept"):
                 if action == "deliver":
                     raw = self.body(MAX_PAYLOAD, raw=True)
@@ -343,6 +374,7 @@ class Handler(BaseHTTPRequestHandler):
             self.body()
             self.app.mirror(party)
             results = reconcile(party, self.app.chain)
+            self.app.mirror_peer_settlements(party, results)
             return self.send(200, {"results": results})
         if route == "chain" and not post:
             snapshot = self.app.chain.snapshot()

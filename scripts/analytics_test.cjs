@@ -11,9 +11,11 @@ const all=summarize(rows,events,{account:{balance:String(E)}},now,7);
 assert.equal(all.total,4);assert.equal(all.releasedWei,125n*E/100n);assert.equal(all.refundedWei,E);
 assert.equal(all.openBuyingWei,3n*E);assert.equal(all.openSellingWei,E/2n);assert.equal(all.shortfall,2n*E);assert.equal(all.coverage,33);
 assert.equal(all.completion,50);assert.equal(all.periodActions,2);assert.equal(all.periodReleasedWei,125n*E/100n);
-assert.deepEqual(all.states,{pending:1,checking:1,settled:1,refunded:1,review:0});
+assert.deepEqual(all.states,{pending:1,checking:1,settled:1,refunded:1,review:0,cancelled:0});
 const buyer=summarize(rows,events,null,now,30,'buyer');assert.equal(buyer.total,3);assert.equal(buyer.periodActions,1);
 const empty=summarize([],[],null,now,90);assert.equal(empty.total,0);assert.equal(empty.coverage,100);assert.equal(empty.buckets.length,90);assert.ok(empty.buckets.every(bucket=>bucket.actions===0&&bucket.releasedWei===0n));
 const huge=summarize([record('large','buyer',2n**200n,'LOCKED')],[],null,now);assert.equal(huge.openBuyingWei,2n**200n);
 assert.throws(()=>summarize([],[],null,now,1));
 console.log('Analytics checked: exact money totals, refunds, roles, periods, empty states, duplicate records and large amounts.');
+
+const cancelled=summarize([record('cancelled','buyer',E,'CANCELLED',{release:false,settled_at:now})],[],null,now);assert.equal(cancelled.states.cancelled,1);assert.equal(cancelled.refundedWei,0n);assert.equal(cancelled.openBuyingWei,0n);assert.equal(cancelled.dueSoon,0);
