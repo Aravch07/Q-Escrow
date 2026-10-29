@@ -15,7 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import unquote
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, send_from_directory
 from psycopg.types.json import Jsonb
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -286,10 +286,19 @@ def create_app(database_url=None, session_key=None):
     @app.get("/")
     @app.get("/app.js")
     @app.get("/hosted.js")
+    @app.get("/experience.js")
+    @app.get("/analytics.js")
+    @app.get("/showcase.js")
+    @app.get("/future.css")
     @app.get("/style.css")
     def static():
-        name = {"/": "index.html", "/app.js": "app.js", "/hosted.js": "hosted.js", "/style.css": "style.css"}[request.path]
-        return Response((STATIC / name).read_bytes(), content_type={"index.html":"text/html; charset=utf-8", "app.js":"text/javascript; charset=utf-8", "hosted.js":"text/javascript; charset=utf-8", "style.css":"text/css; charset=utf-8"}[name])
+        name = "index.html" if request.path == "/" else request.path.lstrip("/")
+        mime = "text/html" if name.endswith(".html") else "text/css" if name.endswith(".css") else "text/javascript"
+        return Response((STATIC / name).read_bytes(), content_type=mime + "; charset=utf-8")
+
+    @app.get("/assets/<path:name>")
+    def visual_asset(name):
+        return send_from_directory(STATIC / "assets", name)
 
     @app.get("/api/config")
     def config():

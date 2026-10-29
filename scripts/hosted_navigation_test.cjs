@@ -4,16 +4,16 @@ const {randomBytes}=require('node:crypto');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const url=process.env.PQE_URL||'https://pq-escrow.vercel.app',out=process.env.PQE_SCREENSHOTS||path.resolve(__dirname,'../docs/hosted-live');
 const name='view_'+randomBytes(3).toString('hex'),password=randomBytes(18).toString('base64');
-const titles={overview:/Good /,escrows:'Your agreements',wallet:'Your wallet.',activity:'Every step leaves a trace.',verify:'Verify the evidence.',ledger:'The local ledger.',lab:'Try to break the agreement.',settings:'Settings',help:'A clear path from agreement to payment.',inbox:'Your inbox'};
+const titles={overview:/Good /,escrows:'Your agreements',analytics:'A clearer view of every move.',wallet:'Your wallet.',activity:'Every step leaves a trace.',verify:'Verify the evidence.',ledger:'The local ledger.',lab:'Try to break the agreement.',settings:'Settings',help:'A clear path from agreement to payment.',inbox:'Your inbox'};
 (async()=>{
  const browser=await chromium.launch({headless:true}),errors=[],checks=[];fs.mkdirSync(out,{recursive:true});
  try{
-  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(url);await page.getByRole('tab',{name:'Create account',exact:true}).click();await page.locator('#display-name').fill('Workspace review');await page.locator('#username').fill(name);await page.locator('#password').fill(password);await page.locator('#confirm-password').fill(password);await page.getByRole('button',{name:'Create account →',exact:true}).click();await page.locator('.workspace-insights').waitFor();
+  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();page.setDefaultTimeout(90000);page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(url);await page.getByRole('tab',{name:'Create account',exact:true}).click();await page.locator('#display-name').fill('Workspace review');await page.locator('#username').fill(name);await page.locator('#password').fill(password);await page.locator('#confirm-password').fill(password);await page.getByRole('button',{name:'Create account →',exact:true}).click();await page.locator('.analytics-widget').waitFor();
   for(const [key,title] of Object.entries(titles)){
    const target=url+'/#'+key;if(page.url()===target)await page.reload();else await page.goto(target);
    await page.getByRole('heading',{name:title,exact:typeof title==='string'}).waitFor();
-   if(key==='overview')await page.locator('.workspace-insights').waitFor();if(key==='settings')await page.locator('.sessions-card').waitFor();if(key==='escrows')await page.locator('#agreement-role').waitFor();
+   if(key==='overview')await page.locator('.analytics-widget').waitFor();if(key==='settings')await page.locator('.sessions-card').waitFor();if(key==='escrows')await page.locator('#agreement-role').waitFor();
    for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`${key} fits ${width}px`);}
    await page.screenshot({path:path.join(out,'desktop-'+key+'.png'),fullPage:true,animations:'disabled'});
    if(['overview','inbox','settings','lab'].includes(key)){await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(out,'mobile-'+key+'.png'),fullPage:true,animations:'disabled'});}

@@ -126,14 +126,16 @@ def accepted(a,b,**extra):
 
 def test_static_security_headers_and_csrf(web):
     c = web.client()
-    for path in ('/','/app.js','/style.css'):
+    for path in ('/','/app.js','/style.css','/future.css','/analytics.js','/showcase.js','/experience.js','/assets/sample-workspace.json','/assets/agreement-link.png','/assets/SpaceGrotesk.ttf'):
         status, body, headers = c.request(path)
-        assert status == 200 and len(body) > 500
+        assert status == 200 and len(canonical_json(body) if isinstance(body, dict) else body) > 500
         assert "default-src 'self'" in headers['Content-Security-Policy']
         assert 'unsafe-inline' not in headers['Content-Security-Policy']
         assert headers['X-Frame-Options'] == 'DENY'
         assert headers['X-Content-Type-Options'] == 'nosniff'
         assert headers['Referrer-Policy'] == 'no-referrer'
+    for path in ('/assets/../server.py', '/assets/%2e%2e/server.py', '/assets/missing.png'):
+        assert c.request(path)[0] == 404
     assert c.get('me')[0] == 401
     assert c.post('login', {'username':'alice','password':'demo1234'}, csrf=False)[0] == 403
     assert c.post('login', {'username':'alice','password':'demo1234'}, headers={'Origin':'http://evil.test'})[0] == 403

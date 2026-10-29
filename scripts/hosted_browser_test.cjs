@@ -8,7 +8,7 @@ const suffix=randomBytes(3).toString('hex'),buyer='buyer_'+suffix,seller='seller
 const bytes=randomBytes(Number(process.env.PQE_FILE_MIB||'5')*1024*1024),hash=createHash('sha256').update(bytes).digest('hex');
 const checks=[],errors=[],uploads=[];
 async function ready(page){await page.locator('.workspace').waitFor();await page.locator('.loading').waitFor({state:'detached'});}
-async function route(page,key){const target=url+'/#'+key;if(page.url()===target)await page.reload();else await page.goto(target);await ready(page);const titles={overview:/Good /,escrows:'Your agreements',wallet:'Your wallet.',activity:'Every step leaves a trace.',verify:'Verify the evidence.',ledger:'The local ledger.',lab:'Try to break the agreement.',settings:'Settings',help:'A clear path from agreement to payment.',inbox:'Your inbox'};if(titles[key])await page.getByRole('heading',{name:titles[key],exact:typeof titles[key]==='string'}).waitFor();if(key==='overview')await page.locator('.workspace-insights').waitFor();if(key==='settings')await page.locator('.sessions-card').waitFor();if(key.startsWith('escrows/'))await page.locator('#private-note').waitFor();}
+async function route(page,key){const target=url+'/#'+key;if(page.url()===target)await page.reload();else await page.goto(target);await ready(page);const titles={overview:/Good /,escrows:'Your agreements',wallet:'Your wallet.',activity:'Every step leaves a trace.',verify:'Verify the evidence.',ledger:'The local ledger.',lab:'Try to break the agreement.',settings:'Settings',help:'A clear path from agreement to payment.',inbox:'Your inbox'};if(titles[key])await page.getByRole('heading',{name:titles[key],exact:typeof titles[key]==='string'}).waitFor();if(key==='overview')await page.locator('.analytics-widget').waitFor();if(key==='settings')await page.locator('.sessions-card').waitFor();if(key.startsWith('escrows/'))await page.locator('#private-note').waitFor();}
 async function signup(page,name){
  await page.goto(url);await page.getByRole('tab',{name:'Create account',exact:true}).click();
  await page.locator('#display-name').fill(name);await page.locator('#username').fill(name);await page.locator('#password').fill(password);await page.locator('#confirm-password').fill(password);
@@ -18,7 +18,7 @@ async function consent(page){await page.getByRole('button',{name:'Confirm and si
 (async()=>{
  fs.mkdirSync(out,{recursive:true});const browser=await chromium.launch({headless:true});
  const aContext=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),bContext=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
- const a=await aContext.newPage(),b=await bContext.newPage();
+ const a=await aContext.newPage(),b=await bContext.newPage();a.setDefaultTimeout(90000);b.setDefaultTimeout(90000);
  for(const page of [a,b]){page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(/\/api\/uploads\/[^/]+\/\d+$/.test(new URL(request.url()).pathname))uploads.push(request.postDataBuffer()?.length||0);});}
  try{
   await signup(a,buyer);assert.equal(await a.locator('.demo-chips').count(),0);await a.getByRole('button',{name:'Copy invite link',exact:true}).waitFor();

@@ -1,0 +1,43 @@
+/* Interactive prototype, analytics and responsive design checks. */
+const {chromium}=require(process.env.PQE_PLAYWRIGHT||'playwright');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const url=process.env.PQE_URL||'http://127.0.0.1:8792',out=process.env.PQE_SCREENSHOTS||path.resolve(__dirname,'../docs/prototype-checks');
+const headings={overview:/Good /,escrows:'Your agreements',analytics:'A clearer view of every move.',wallet:'Your wallet.',activity:'Every step leaves a trace.',ledger:'The local ledger.',verify:'Verify the evidence.',lab:'Try to break the agreement.',settings:'Settings',help:'A clear path from agreement to payment.'};
+(async()=>{
+ const browser=await chromium.launch({headless:true}),errors=[],posts=[],checks=[];fs.mkdirSync(out,{recursive:true});
+ try{
+  const context=await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true}),page=await context.newPage();
+  page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.method()==='POST')posts.push(new URL(request.url()).pathname);});
+  async function route(key){const target=url+'/?demo=1#'+key;if(page.url()===target)await page.reload();else await page.goto(target);const title=headings[key];if(title)await page.getByRole('heading',{name:title,exact:typeof title==='string'}).waitFor();if(['overview','analytics'].includes(key))await page.locator('.chart-point').first().waitFor();if(key==='settings')await page.locator('.appearance-studio').waitFor();await page.evaluate(()=>document.fonts.ready);}
+  await route('overview');assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');assert.equal(await page.locator('.preview-ribbon').getByText('INTERACTIVE DEMO',{exact:false}).count(),1);assert.equal(await page.locator('.intelligence-metrics>div:first-child strong').textContent(),'10');
+  assert.equal(await page.evaluate(()=>document.fonts.check('500 16px "Space Grotesk"')),true);assert.ok(await page.locator('.hero-art img').evaluate(image=>image.complete&&image.naturalWidth>0));
+  await page.screenshot({path:path.join(out,'desktop-overview.png'),fullPage:true,animations:'disabled'});
+  await page.getByRole('button',{name:'Take a tour',exact:true}).click();await page.getByRole('dialog',{name:'Start with a clear balance.'}).waitFor();
+  for(let step=0;step<4;step++)await page.getByRole('button',{name:'Next step',exact:false}).click();await page.getByRole('button',{name:'Finish tour',exact:false}).click();await page.locator('#product-tour').waitFor({state:'hidden'});
+  await page.getByRole('button',{name:'Take a tour',exact:true}).click();await page.getByRole('button',{name:'Open wallet',exact:false}).click();await page.locator('#deposit-amount.tour-focus').waitFor();
+  checks.push('One-click labelled sample workspace loads without credentials; real artwork/fonts load; the five-step walkthrough completes');
+  await route('analytics');assert.equal((await page.locator('#plot-total').textContent()).trim(),'38');await page.locator('[data-experience="chart-mode"][data-value="payments"]').click();assert.equal(await page.locator('#plot-total').textContent(),'4.1 test ETH');
+  await page.locator('#analytics-role').selectOption('buyer');assert.equal(await page.locator('.intelligence-metrics>div:first-child strong').textContent(),'7');assert.equal(await page.locator('#plot-total').textContent(),'3.45 test ETH');
+  await page.locator('[data-experience="chart-range"][data-value="30"]').click();assert.equal(await page.locator('.chart-point').count(),30);await page.locator('[data-experience="chart-range"][data-value="90"]').click();assert.equal(await page.locator('.chart-point').count(),90);
+  await page.locator('.chart-point[tabindex="0"]').focus();await page.keyboard.press('Home');assert.equal(await page.locator('.chart-point').first().evaluate(element=>element===document.activeElement),true);await page.locator('.chart-tooltip').waitFor({state:'visible'});
+  const [csv]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Export statistics',exact:false}).click()]);const csvText=fs.readFileSync(await csv.path(),'utf8');assert.ok(csvText.includes('Released value (wei)'));assert.equal(csvText.trim().split('\n').length,91);
+  await page.locator('#analytics-role').selectOption('all');await page.locator('[data-experience="chart-range"][data-value="7"]').click();await page.locator('[data-experience="chart-mode"][data-value="activity"]').click();
+  await page.screenshot({path:path.join(out,'desktop-analytics.png'),fullPage:true,animations:'disabled'});
+  checks.push('Analytics exactly matches the sample records: 10 total, 7 buying, 4.1 ETH released overall, 3.45 buying; range/role/measure controls, keyboard tooltips and CSV work');
+  await route('overview');await page.getByRole('button',{name:'＋ Create escrow',exact:true}).click();await page.locator('#create-dialog').waitFor();await page.locator('#seller').selectOption('bob');await page.locator('#description').fill('Sample wizard exploration');await page.locator('#amount').fill('1');await page.getByRole('button',{name:'Continue to file check',exact:true}).click();await page.getByRole('button',{name:'Review agreement',exact:true}).click();await page.getByRole('button',{name:'Review and sign terms',exact:true}).click();await page.getByRole('dialog',{name:'Your next agreement starts here.'}).waitFor();await page.getByRole('button',{name:'Keep exploring',exact:true}).click();await page.locator('#create-dialog').press('Escape');
+  await page.getByRole('button',{name:'Go offline',exact:true}).click();await page.getByRole('button',{name:'Go online',exact:true}).waitFor();await page.getByRole('button',{name:'Go online',exact:true}).click();
+  assert.deepEqual(posts,[]);checks.push('Sample wizard is interactive but cannot sign or mutate server data; payment toggle stays in memory; no POST requests are sent');
+  for(const [key,title] of Object.entries(headings)){
+   await route(key);
+   for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`${key} fits ${width}px`);}
+   if(['wallet','verify','lab','settings'].includes(key))await page.screenshot({path:path.join(out,'desktop-'+key+'.png'),fullPage:true,animations:'disabled'});
+  }
+  checks.push('All ten demo destinations fit 320, 390, 768 and 1440 pixels');
+  await route('settings');await page.locator('[data-experience="theme"][data-value="light"]').click();assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');await page.screenshot({path:path.join(out,'frost-settings.png'),fullPage:true,animations:'disabled'});
+  await page.locator('[data-experience="accent"][data-value="ice"]').click();assert.equal(await page.evaluate(()=>document.documentElement.dataset.accent),'ice');await page.reload();await page.locator('.appearance-studio').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.dataset.accent),'ice');
+  await page.locator('[data-experience="theme"][data-value="dark"]').click();await page.locator('[data-experience="accent"][data-value="mint"]').click();await route('analytics');await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(out,'mobile-analytics.png'),fullPage:true,animations:'disabled'});
+  checks.push('Obsidian/Frost appearance controls and accent persistence work; charts resize on mobile');
+  const auth=await browser.newPage({viewport:{width:1440,height:1000}});auth.on('pageerror',error=>errors.push(error.message));await auth.goto(url);await auth.locator('#auth-form').waitFor();await auth.evaluate(()=>document.fonts.ready);await auth.waitForFunction(()=>document.querySelector('.poster-art')?.complete&&document.querySelector('.poster-art')?.naturalWidth>0);await auth.screenshot({path:path.join(out,'desktop-sign-in.png'),fullPage:true,animations:'disabled'});await auth.setViewportSize({width:390,height:844});assert.equal(await auth.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await auth.screenshot({path:path.join(out,'mobile-sign-in.png'),fullPage:true,animations:'disabled'});
+  assert.deepEqual(errors,[]);const result={passed:true,checks,consoleErrors:errors,serverPosts:posts};fs.writeFileSync(path.join(out,'results.json'),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result,null,2));
+ }catch(error){throw error;}finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

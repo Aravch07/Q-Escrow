@@ -10,6 +10,19 @@ online; your Desktop accounts remain separate. The live version adds profiles,
 session controls, an inbox, private notes, exports and large-file transfers.
 See [hosting and configuration](docs/HOSTING.md). Both editions use test funds.
 
+**Explore the prototype:** [Open the interactive sample workspace](https://pq-escrow.vercel.app/?demo=1#overview)
+without an account. It contains labelled sample agreements, a five-step product
+tour, an explorable escrow wizard and working analytics controls. The sample is
+read-only; create an account for signing, deliveries and payments with test funds.
+
+The redesigned interface includes professional studio artwork, self-hosted Space
+Grotesk and Manrope fonts, Obsidian/Frost/System appearance and three accent
+colours. Home and **Tools → Analytics** show saved activity, released payments,
+agreement value and status. Choose 7/30/90 days, filter by role, inspect chart
+points with a pointer or keyboard, and export the plotted statistics as CSV.
+Money totals use exact integer wei; open value is distinct from released funds.
+See [the prototype guide and rollback instructions](docs/PROTOTYPE.md).
+
 The workflow is deliberately ordered:
 
 **Create escrow → Authenticate → Deliver and hash → Operate offline → Verify and reconcile → Blockchain settlement**

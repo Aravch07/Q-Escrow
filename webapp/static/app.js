@@ -9,6 +9,7 @@ function wei(value) { if(!/^\d+(\.\d{1,18})?$/.test(value)) throw Error('Enter a
 const statusLabels={PROPOSED:'Awaiting signature',LOCKED:'Ready for delivery',DELIVERED:'Review delivery',ACCEPTED:'Ready to settle',SETTLED:'Settled',REJECTED:'Needs review'};
 const badge = state => `<span class="badge ${esc(state.toLowerCase())}"><span class="status-dot"></span>${esc(statusLabels[state]||state.toLowerCase())}</span>`;
 let me=null, currentDetail=null, detailTab='checks', authMode='login', renderVersion=0;
+let overviewRecords=[],overviewAudit=[],overviewWallet=null;
 let runtime={hosted:location.protocol==='https:',chunk_size:1048576};
 const navItems=[['overview','◈','Overview'],['escrows','▤','Escrows'],['wallet','◇','Wallet'],['ledger','≋','Ledger'],['verify','✓','Verify'],['lab','⌁','Attack lab'],['activity','◷','Activity'],['settings','⚙','Settings and keys']];
 
@@ -47,8 +48,8 @@ let escrowRecords=[],escrowFilter='all',escrowQuery='';
 function updateEscrowResults(){const filtered=escrowRecords.filter(r=>(escrowFilter==='all'||escrowFilter==='active'&&!['SETTLED','REJECTED'].includes(r.state)||escrowFilter==='settled'&&r.state==='SETTLED'||escrowFilter==='review'&&r.state==='REJECTED')&&[r.terms.description,r.terms.buyer.name,r.terms.seller.name,r.escrow_id,eth(r.terms.amount_wei)].join(' ').toLowerCase().includes(escrowQuery.toLowerCase()));$('#escrow-results').innerHTML=escrowTable(filtered,Boolean(escrowQuery||escrowFilter!=='all'));document.querySelectorAll('[data-action="filter"]').forEach(b=>{const selected=b.dataset.filter===escrowFilter;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));});}
 
 function applyTheme(value) { if(value==='device') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=value; localStorage.setItem('pqe-theme',value); }
-if(localStorage.getItem('pqe-design')!=='finance-2'){localStorage.setItem('pqe-design','finance-2');applyTheme('light');}
-else applyTheme(localStorage.getItem('pqe-theme') || 'light');
+if(localStorage.getItem('pqe-design')!=='quantum-3'){localStorage.setItem('pqe-design','quantum-3');applyTheme('dark');}
+else applyTheme(localStorage.getItem('pqe-theme') || 'dark');
 async function api(route, data, options={}) {
   const headers={}; let body;
   if(data!==undefined) { headers['X-Requested-With']='PQEscrow'; if(options.raw){body=data; Object.assign(headers,options.headers||{});}else{headers['Content-Type']='application/json';body=JSON.stringify(data);} }
@@ -65,7 +66,7 @@ const newButton='<button data-action="new">＋ Create escrow</button>';
 function shell() {
  const page=(location.hash.slice(1)||'overview').split('/')[0];
  const primary=[['overview','grid','Home'],['escrows','file','Agreements'],['wallet','wallet','Wallet'],['activity','clock','Activity']];
- const tools=[['ledger','ledger','Ledger','Recorded payments and balances'],['verify','shield','Verify','Check a file or signed bundle'],['lab','lab','Attack lab','Explore security with practice copies'],['settings','settings','Settings','Appearance, account and signing identity']];
+ const tools=[['analytics','chart','Analytics','Charts, trends and workspace statistics'],['ledger','ledger','Ledger','Recorded payments and balances'],['verify','shield','Verify','Check a file or signed bundle'],['lab','lab','Attack lab','Explore security with practice copies'],['settings','settings','Settings','Appearance, account and signing identity']];
  $('#app').innerHTML=`<header class="app-header"><div class="header-inner"><a class="logo" href="#overview">${brand()}</a><span class="workspace-name">Your workspace</span><div class="top-actions"><span class="test-tag">Test funds only</span><button class="network ${me.online?'':'offline'}" data-action="network" aria-label="${me.online?'Go offline':'Go online'}" title="${me.online?'Payment connection is online':'You can sign offline; connect to finish payments'}"><span class="dot"></span>${me.online?'Online':'Offline'}</button><a class="icon-button help-link ${page==='help'?'active':''}" href="#help" aria-label="Help and getting started" title="Help and getting started">${icon('circle')}<span>?</span></a><button class="icon-button theme-shortcut" data-action="theme" aria-label="Toggle light or dark appearance" title="Change appearance">${icon('sun')}</button><div class="account-menu"><a href="#settings" class="profile-link" aria-label="Settings for ${esc(me.identity.name)}">${person(me.identity.name)}<span>${esc(me.identity.name)}</span></a><button class="icon-button" data-action="logout" aria-label="Sign out ↗" title="Sign out">${icon('exit')}</button></div></div></div><div class="nav-bar simple-nav"><nav class="primary-nav" aria-label="Main navigation">${primary.map(([id,symbol,name])=>`<a href="#${id}" class="${page===id?'active':''}" ${page===id?'aria-current="page"':''}>${icon(symbol)}<span>${name}</span></a>`).join('')}</nav><div class="nav-tools"><button id="tools-toggle" class="tools-toggle ${tools.some(([id])=>id===page)?'active':''}" data-action="toggle-tools" aria-expanded="false" aria-controls="tools-menu">Tools ${icon('chevron')}</button><div id="tools-menu" class="tools-menu" role="navigation" aria-label="Tools" hidden>${tools.map(([id,symbol,name,description])=>`<a href="#${id}" aria-label="${name}" ${page===id?'aria-current="page"':''}>${icon(symbol)}<span><strong>${name}</strong><small>${description}</small></span></a>`).join('')}<a href="#help" aria-label="Getting started">${icon('file')}<span><strong>Getting started</strong><small>A short guide for buyers and sellers</small></span></a><button data-action="refresh" class="ghost">${icon('refresh')}Refresh workspace</button></div></div><button class="icon-button nav-refresh" data-action="refresh" aria-label="Refresh workspace" title="Refresh workspace">${icon('refresh')}</button></div></header><div class="workspace">${me.online?'':`<div class="offline-banner"><span>${icon('peer')}You’re working offline. Agreements and files still work; connect to finish payments.</span><button class="ghost" data-action="network">Connect now</button></div>`}<main id="main" class="content" tabindex="-1"><p class="loading">Opening your workspace…</p></main></div>`;
 }
 function closeTools(focus=false){const menu=$('#tools-menu'),button=$('#tools-toggle');if(menu)menu.hidden=true;if(button){button.setAttribute('aria-expanded','false');if(focus)button.focus();}}
@@ -122,6 +123,7 @@ function walletStats(w) { return `<div class="stats"><div class="card stat-card"
 
 async function overview() {
  const [w,{escrows:records},audit]=await Promise.all([api('wallet'),api('escrows'),api('audit')]);
+ overviewRecords=records;overviewAudit=audit.entries;overviewWallet=w;
  const attention=records.filter(r=>!r.settlement&&!r.rejection && (r.state==='ACCEPTED'||r.verification.outcome==='REFUND'||r.role==='seller'&&['PROPOSED','LOCKED'].includes(r.state)||r.role==='buyer'&&r.state==='DELIVERED'));
  const recent=records.slice().sort((a,b)=>b.terms.created_at-a.terms.created_at).slice(0,5);
  const eventNames={account_created:'Workspace created',proposed:'Agreement created',countersigned:'Terms countersigned',delivered:'Delivery signed',decision_release:'Release approved',decision_refund:'Refund requested',settled_release:'Payment released',settled_refund:'Refund recorded',bundle_imported:'Evidence received',peer_settlement_observed:'Settlement confirmed',claim:'Earnings claimed',wallet_deposit:'Funds deposited'};
@@ -251,6 +253,7 @@ async function render() {
  try {
   let html;
   if(page==='escrows'&&id) html=await detail(id);
+   else if(page==='analytics')html=await analyticsPage();
   else if(page==='escrows')html=await escrowList();
   else if(page==='wallet')html=await wallet();
   else if(page==='ledger')html=await ledger();

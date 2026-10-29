@@ -151,4 +151,4 @@ document.addEventListener('submit',async event=>{
  }catch(error){toast(error.message,true);}finally{button.disabled=false;}
 });
 setInterval(()=>{if(runtime.hosted&&me)updateInboxBadge().catch(()=>{});},30000);
-(async()=>{try{runtime=await api('config');}catch{}await render();})();
+async function startWorkspace(){try{runtime=await api('config');}catch{}const query=new URL(location.href).searchParams;if(query.get('signup')==='1')authMode='register';if(query.get('demo')==='1'){try{await enableShowcase();}catch(error){toast(error.message,true);}}else if(runtime.preview&&query.get('sample')==='1'){try{await api('login',{username:'alice',password:'demo1234'});}catch{}}await render();}

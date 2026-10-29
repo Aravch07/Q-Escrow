@@ -8,6 +8,12 @@ your 10 test ETH to try the buyer and seller workflow with another account.
 The shared Alice/Bob/Carol Desktop credentials are not enabled on the live site.
 Desktop accounts, encrypted keys and saved agreements were not uploaded.
 
+For an immediate look around, choose **Explore interactive demo** on the sign-in
+page. This clearly labelled, read-only sample runs without an account or server
+session. Its bundled records are generated fixtures, separate from hosted users.
+Create an account to use the complete workflow. The [prototype guide](PROTOTYPE.md)
+describes the tour, chart controls, sample export and preserved rollback branch.
+
 This remains an educational application with **test funds**, a simulated
 settlement ledger and server-side ML-DSA-65 signing. Publishing it does not turn
 the ledger into a live Ethereum contract or real-money custody service.

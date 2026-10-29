@@ -1,5 +1,6 @@
 import json
 import logging
+import mimetypes
 import os
 import re
 import socket
@@ -203,7 +204,16 @@ class Handler(BaseHTTPRequestHandler):
                 assets = {"/": ("index.html", "text/html; charset=utf-8"),
                           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
                           "/hosted.js": ("hosted.js", "text/javascript; charset=utf-8"),
+                          "/experience.js": ("experience.js", "text/javascript; charset=utf-8"),
+                          "/analytics.js": ("analytics.js", "text/javascript; charset=utf-8"),
+                          "/showcase.js": ("showcase.js", "text/javascript; charset=utf-8"),
+                          "/future.css": ("future.css", "text/css; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8")}
+                if path.startswith("/assets/"):
+                    asset = (STATIC / path.lstrip("/")).resolve()
+                    if not asset.is_relative_to((STATIC / "assets").resolve()) or not asset.is_file():
+                        raise HTTPError(404, "Asset not found")
+                    return self.send(200, asset.read_bytes(), mimetypes.guess_type(asset.name)[0] or "application/octet-stream")
                 if path not in assets:
                     raise HTTPError(404, "Page not found")
                 file, mime = assets[path]
@@ -223,7 +233,8 @@ class Handler(BaseHTTPRequestHandler):
     def api(self, route, post):
         a = self.app.accounts
         if route == "config" and not post:
-            return self.send(200, {"hosted": False, "demo": True, "max_file_size": MAX_PAYLOAD})
+            return self.send(200, {"hosted": False, "demo": True, "max_file_size": MAX_PAYLOAD,
+                                   "preview": os.environ.get("PQE_DESIGN_PREVIEW") == "1"})
         if route in ("register", "login") and post:
             data = self.body()
             if route == "register":
