@@ -83,5 +83,5 @@ claims, evidence verification, notes, sessions and exports.
 isolated Attack lab experiments. Set `PQE_URL` to the target; set
 `PQE_PLAYWRIGHT` to the installed Playwright module path when needed.
 
-This is a working educational prototype with simulated test ETH and server-side
-ML-DSA-65 signing, not an audited real-money custody service.
+This release uses simulated test ETH and server-side ML-DSA-65 signing. It has
+not undergone an independent security audit and is not ready for real-money custody.

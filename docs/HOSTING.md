@@ -14,7 +14,7 @@ session. Its bundled records are generated fixtures, separate from hosted users.
 Create an account to use the complete workflow. The [prototype guide](PROTOTYPE.md)
 describes the tour, chart controls, sample export and preserved rollback branch.
 
-This remains an educational application with **test funds**, a simulated
+The current release uses **test funds**, a simulated
 settlement ledger and server-side ML-DSA-65 signing. Publishing it does not turn
 the ledger into a live Ethereum contract or real-money custody service.
 

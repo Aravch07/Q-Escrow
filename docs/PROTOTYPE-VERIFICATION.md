@@ -35,7 +35,8 @@ parallel local browser run hit a timeout while database integration tests were
 using the same hosted database service; the final separate run passed.
 
 Sample screenshots and machine-readable results are in `docs/prototype-checks/`.
-These checks establish an educational prototype, not a real-money custody audit.
+These checks verify functional behaviour; they do not constitute a security audit
+for real-money custody.
 
 ## Public production verification
 
