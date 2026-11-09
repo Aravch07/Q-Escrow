@@ -20,15 +20,18 @@ from psycopg.types.json import Jsonb
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from escrow.crypto import b64, canonical_json, sha256_bytes, unb64
-from escrow.protocol import MAX_PAYLOAD, deliver, filename, record_from_bundle
+from escrow.protocol import MAX_PAYLOAD, deliver, filename, propose, record_from_bundle
 from escrow.reconcile import verify_offline
 from .accounts import HTTPError
 from .cloud_store import CloudAccounts, CloudLedger, connect_database, initialize_database
 from .inbox import build_inbox
+from .marketplace import marketplace_api
+from .preview import PREVIEW_TYPES, render_preview
 from .server import App, Handler, STATIC
 
 CHUNK = 1024 * 1024
 WRITE_LOCK = 7348261901
+PREVIEW_LOCK = threading.Lock()
 
 
 class CloudApp(App):
@@ -38,7 +41,30 @@ class CloudApp(App):
         self.chain = CloudLedger(connection, self.now)
 
     def detail(self, party, record, include_payload=False):
-        return super().detail(party, record, include_payload=False)
+        detail = super().detail(party, record, include_payload=False)
+        detail["file_unlocked"] = bool(record.delivery
+            and (detail["role"] == "seller" or record.settlement)
+            and self.can_download(party.identity.name, record.escrow_id, record.terms))
+        detail["preview_available"] = bool(record.delivery and not detail["file_unlocked"]
+            and not (record.settlement or record.cancellation or record.rejection)
+            and self.now() < record.terms["expires_at"]
+            and Path(record.delivery["filename"]).suffix.lower() in PREVIEW_TYPES)
+        return detail
+
+    def can_download(self, name, escrow_id, terms):
+        if name == terms["seller"]["name"]:
+            return True
+        if name != terms["buyer"]["name"]:
+            return False
+        settlement = self.chain.settlement(escrow_id)
+        return bool(settlement and settlement["release"] is True)
+
+    def attack(self, party, kind, escrow_id=None, options=None):
+        if escrow_id and kind in ("file", "price", "signature"):
+            record = self.record(party, escrow_id)
+            if not self.can_download(party.identity.name, escrow_id, record.terms):
+                raise HTTPError(403, "Use the practice example until the original file unlocks")
+        return super().attack(party, kind, escrow_id, options)
 
 
 class CloudHandler(Handler):
@@ -89,6 +115,36 @@ class CloudHandler(Handler):
             raise HTTPError(404, "Agreement not found for your account")
         return row
 
+    def create_agreement(self, party, data):
+        count = self.connection.execute("SELECT COUNT(*) FROM pqe_records WHERE owner=%s", (party.identity.name,)).fetchone()[0]
+        if count >= 100:
+            raise HTTPError(400, "This workspace has reached its 100 agreement allowance")
+        seller = self.app.accounts.party(data.get("seller"), public_only=True).identity
+        expiry = data.get("expires_at", self.app.now() + 3600)
+        record = propose(party, seller, data.get("amount_wei"), data.get("description"), expiry, data.get("expected_sha256"))
+        self.app.peer(party, record)
+        return record
+
+    def preview(self, name, row):
+        body = row["body"]
+        receipt = body.get("delivery")
+        if not receipt or body.get("settlement") or body.get("cancellation") or body.get("rejection") or self.app.now() >= body["terms"]["expires_at"]:
+            raise HTTPError(404, "There is no active delivery preview")
+        extension = Path(receipt["filename"]).suffix.lower()
+        if extension not in PREVIEW_TYPES:
+            raise HTTPError(415, "Previews support PDFs, PNG, JPEG and WebP")
+        stored = self.connection.execute("SELECT data FROM pqe_files WHERE digest=%s", (row["file_hash"],)).fetchone()
+        if not stored:
+            raise HTTPError(404, "Delivery file missing")
+        try:
+            # PDFium calls must not overlap within a function instance.
+            with PREVIEW_LOCK:
+                rendered = render_preview(bytes(stored[0]), extension, name)
+        except Exception as exc:
+            logging.info("Delivery preview failed (%s)", type(exc).__name__)
+            raise HTTPError(422, "This file could not be previewed. The original remains protected.") from None
+        return self.send(200, rendered)
+
     def upload(self, owner, upload_id, purpose=None, escrow_id=None):
         row = self.connection.execute("SELECT * FROM pqe_uploads WHERE id=%s AND owner=%s", (upload_id, owner)).fetchone()
         if not row or row["created_at"] < int(time.time()) - 3600:
@@ -117,6 +173,8 @@ class CloudHandler(Handler):
         if route in ("login", "logout"):
             return super().api(route, post)
         name, party = self.authenticated()
+        if route == "marketplace" or route.startswith("marketplace/"):
+            return marketplace_api(self, route, post, name, party)
         if route == "me" and not post:
             result = super().api(route, post)
             data = json.loads(result.get_data())
@@ -244,25 +302,30 @@ class CloudHandler(Handler):
             verdict = verify_offline(record, self.app.now()).asdict()
             conn.execute("DELETE FROM pqe_uploads WHERE id=%s", (row["id"],))
             return self.send(200, verdict)
-        artifact = re.fullmatch(r"escrows/([0-9a-f]{64})/(artifact|payload)", route)
+        artifact = re.fullmatch(r"escrows/([0-9a-f]{64})/(artifact|payload|download|bundle|preview)", route)
         if artifact and not post:
             row = self.saved(name, artifact[1]); body = row["body"]; receipt = body.get("delivery")
+            if artifact[2] == "preview":
+                return self.preview(name, row)
+            unlocked = bool(receipt and self.app.can_download(name, artifact[1], body["terms"]))
+            if receipt and not unlocked and artifact[2] in ("payload", "download", "bundle"):
+                raise HTTPError(403, "The original file unlocks only after payment settles")
             if artifact[2] == "payload":
                 offset = request.args.get("offset", "0")
-                if not receipt or not offset.isdecimal() or int(offset) > receipt["size"]:
+                if not receipt or not re.fullmatch(r"[0-9]{1,8}", offset) or int(offset) > receipt["size"]:
                     raise HTTPError(400, "Invalid file offset")
                 raw = conn.execute("SELECT substring(data FROM %s FOR %s) FROM pqe_files WHERE digest=%s", (int(offset) + 1, CHUNK, row["file_hash"])).fetchone()
                 if not raw:
                     raise HTTPError(404, "Delivery file missing")
                 return self.send(200, bytes(raw[0]), "application/octet-stream")
-            return self.send(200, {"bundle": {"format": "PQE-v1", **{k: body[k] for k in ("escrow_id", "terms", "signatures", "delivery", "acceptance")}, **({"cancellation": body["cancellation"]} if body.get("cancellation") else {})},
-                                   "file": {"size": receipt["size"], "sha256": receipt["sha256"], "filename": receipt["filename"]} if receipt else None})
+            if artifact[2] == "artifact":
+                return self.send(200, {"bundle": {"format": "PQE-v1", **{k: body[k] for k in ("escrow_id", "terms", "signatures", "delivery", "acceptance")}, **({"cancellation": body["cancellation"]} if body.get("cancellation") else {})},
+                                       "file": {"size": receipt["size"], "sha256": receipt["sha256"], "filename": receipt["filename"]} if unlocked else None,
+                                       "file_locked": bool(receipt and not unlocked)})
         if route == "lab/time":
             raise HTTPError(403, "The shared live clock cannot be changed. Attack lab experiments use isolated practice copies.")
         if route == "escrows" and post:
-            count = conn.execute("SELECT COUNT(*) FROM pqe_records WHERE owner=%s", (name,)).fetchone()[0]
-            if count >= 100:
-                raise HTTPError(400, "This workspace has reached its 100 agreement allowance")
+            return self.send(201, self.app.detail(party, self.create_agreement(party, self.body())))
         return super().api(route, post)
 
 
@@ -302,6 +365,7 @@ def create_app(database_url=None, session_key=None):
     @app.get("/analytics.js")
     @app.get("/showcase.js")
     @app.get("/live.js")
+    @app.get("/marketplace.js")
     @app.get("/future.css")
     @app.get("/style.css")
     def static():
@@ -365,7 +429,8 @@ def create_app(database_url=None, session_key=None):
             with tempfile.TemporaryDirectory(prefix="pqe-cloud-") as temp:
                 with connection.transaction():
                     # Cross-instance writes, peer mirroring and ledger debits commit together.
-                    connection.execute("SELECT pg_advisory_xact_lock(%s)", (WRITE_LOCK,))
+                    if not (not post and route.endswith("/preview")):
+                        connection.execute("SELECT pg_advisory_xact_lock(%s)", (WRITE_LOCK,))
                     hosted = CloudApp(temp, connection, secret)
                     handler = CloudHandler(hosted)
                     try:

@@ -100,7 +100,7 @@ function enhanceExperience(){
  ensurePreview();if(!me||!$('.workspace'))return;
  const [page,id]=(location.hash.slice(1)||'overview').split('/');
  document.body.dataset.page=page;
- const workspace=$('.workspace-name');if(workspace)workspace.innerHTML=`<span class="breadcrumb-dot"></span>Workspace <span>/</span> ${esc(({overview:'Overview',escrows:'Agreements',analytics:'Analytics',wallet:'Wallet',activity:'Activity',settings:'Settings',inbox:'Inbox',lab:'Attack lab',verify:'Verification',ledger:'Ledger',help:'Getting started'})[page]||'Overview')}`;
+ const workspace=$('.workspace-name');if(workspace)workspace.innerHTML=`<span class="breadcrumb-dot"></span>Workspace <span>/</span> ${esc(({overview:'Overview',marketplace:'Marketplace',escrows:'Agreements',analytics:'Analytics',wallet:'Wallet',activity:'Activity',settings:'Settings',inbox:'Inbox',lab:'Attack lab',verify:'Verification',ledger:'Ledger',help:'Getting started'})[page]||'Overview')}`;
  if(page==='overview')enhanceOverview();
  if(page==='analytics'||page==='overview')mountCharts();
  if(runtime.showcase){const exit=$('[data-action="logout"]');if(exit){exit.setAttribute('aria-label','Exit demo');exit.title='Exit demo';}const footer=$('.workspace-footer');if(footer)footer.innerHTML='<span>Interactive sample · No saved changes or real payments</span><a href="/?signup=1">Create your own workspace '+icon('arrow')+'</a>';}

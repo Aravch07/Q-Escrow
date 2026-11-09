@@ -75,8 +75,8 @@ def setup_agreement(app, payload=b"the exact agreed delivery"):
     return buyer, seller, escrow_id
 
 
-def upload(client, payload, escrow_id=None, purpose="delivery"):
-    response = post(client, "uploads/start", dict(size=len(payload), filename="delivery.txt", purpose=purpose, escrow_id=escrow_id))
+def upload(client, payload, escrow_id=None, purpose="delivery", filename="delivery.txt"):
+    response = post(client, "uploads/start", dict(size=len(payload), filename=filename, purpose=purpose, escrow_id=escrow_id))
     assert response.status_code == 201, response.json
     upload_id = response.json["upload_id"]
     size = response.json["chunk_size"]
@@ -113,19 +113,101 @@ def test_complete_hosted_flow_wrong_file_retry_and_large_parts(hosted):
     assert response.status_code == 200, response.json
     assert "payload" not in response.json["bundle"]
     receipt = buyer.get(f"/api/escrows/{escrow_id}/artifact").json
-    pieces = [buyer.get(f"/api/escrows/{escrow_id}/payload?offset={offset}").data for offset in range(0, len(payload), cloud.CHUNK)]
-    assert b"".join(pieces) == payload
-    assert receipt["file"]["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert receipt["file_locked"] and receipt["file"] is None
+    assert receipt["bundle"]["delivery"]["sha256"] == hashlib.sha256(payload).hexdigest()
+    for route in ("download", "bundle", "payload?offset=0"):
+        assert buyer.get(f"/api/escrows/{escrow_id}/{route}").status_code == 403
+    assert post(buyer, "lab/attack", {"kind": "file", "escrow_id": escrow_id}).status_code == 403
+    assert seller.get(f"/api/escrows/{escrow_id}/payload").data == payload[:cloud.CHUNK]
+    assert buyer.get(f"/api/escrows/{escrow_id}/preview").status_code == 415
     assert post(buyer, "online", {"online": False}).status_code == 200
     assert post(recreate(factory, buyer), f"escrows/{escrow_id}/accept", {"decision": "release"}).status_code == 200
+    assert buyer.get(f"/api/escrows/{escrow_id}/payload").status_code == 403
     assert post(buyer, "reconcile").status_code == 409
     post(buyer, "online", {"online": True})
     assert post(recreate(factory, buyer), "reconcile").json["results"][0]["outcome"] == "RELEASE"
+    pieces = [buyer.get(f"/api/escrows/{escrow_id}/payload?offset={offset}").data for offset in range(0, len(payload), cloud.CHUNK)]
+    assert b"".join(pieces) == payload
+    assert buyer.get(f"/api/escrows/{escrow_id}/download").data == payload
     assert recreate(factory, seller).get(f"/api/escrows/{escrow_id}").json["state"] == "SETTLED"
     assert post(seller, "claim").json["amount_wei"] == str(10**18)
     assert seller.get("/api/wallet").json["funds"] == str(11 * 10**18)
     assert buyer.get("/api/audit").json["valid"] is True
     assert seller.get("/api/audit").json["valid"] is True
+
+
+def test_protected_pdf_preview_and_cancel(hosted):
+    import base64
+    import io
+
+    from PIL import Image
+
+    app, _, _ = hosted
+    document = io.BytesIO()
+    images = [Image.new("RGB", (800, 900), color) for color in ("red", "green", "blue")]
+    images[0].save(document, "PDF", save_all=True, append_images=images[1:])
+    payload = document.getvalue()
+    buyer, seller, escrow_id = setup_agreement(app, payload)
+    outsider = account(app, "outsider")
+    base = f"/api/escrows/{escrow_id}"
+    uploaded = upload(seller, payload, escrow_id, filename="report.pdf")
+    assert post(seller, f"escrows/{escrow_id}/deliver-upload", {"upload_id": uploaded}).status_code == 200
+    assert buyer.get(base).json["preview_available"]
+    assert outsider.get(base + "/preview").status_code == 404
+    response = buyer.get(base + "/preview")
+    assert response.status_code == 200, response.json
+    assert response.headers["Cache-Control"] == "no-store"
+    assert [page["label"] for page in response.json["pages"]] == ["Page 1 of 3", "Page 3 of 3"]
+    for page in response.json["pages"]:
+        scheme, encoded = page["src"].split(",", 1)
+        assert scheme == "data:image/jpeg;base64"
+        with Image.open(io.BytesIO(base64.b64decode(encoded))) as image:
+            assert image.format == "JPEG"
+            assert image.getpixel((0, image.height - 5))[2] < 100  # Burned-in footer.
+    assert post(buyer, f"escrows/{escrow_id}/cancel").status_code == 200
+    assert buyer.get(base + "/preview").status_code == 404
+    assert buyer.get(base + "/bundle").status_code == 403
+    assert buyer.get(base + "/payload").status_code == 403
+    assert seller.get(base + "/download").data == payload
+
+
+def test_marketplace_creates_one_signed_escrow_and_keeps_offers_private(hosted):
+    app, factory, _ = hosted
+    buyer, seller = account(app, "buyer"), account(app, "seller")
+    outsider = account(app, "outsider")
+    listing = dict(category="python", title="Clean a CSV", description="Remove duplicate rows", budget_wei=str(2 * 10**18))
+    response = post(buyer, "marketplace", listing)
+    assert response.status_code == 201, response.json
+    listing_id = response.json["id"]
+    base = f"marketplace/{listing_id}"
+    assert seller.get("/api/marketplace?category=python&q=duplicate").json["requests"][0]["id"] == listing_id
+    assert seller.get("/api/marketplace?category=java").json["requests"] == []
+    assert post(seller, base + "/save", {"saved": True}).status_code == 200
+    assert seller.get("/api/marketplace?view=saved").json["requests"][0]["id"] == listing_id
+    assert outsider.get("/api/marketplace?view=saved").json["requests"] == []
+    offer = dict(amount_wei=str(10**18), hours=48, note="Deliver a script and a usage guide")
+    assert post(buyer, base + "/offer", offer).status_code == 403
+    assert post(seller, base + "/offer", {**offer, "hours": 999}).status_code == 400
+    assert post(seller, base + "/offer", offer).status_code == 201
+    assert seller.get("/api/marketplace?view=offers").json["requests"][0]["id"] == listing_id
+    event = next(e for e in buyer.get("/api/notifications").json["account_events"] if e["event"] == "marketplace_offer_received")
+    assert event["sender"] == "seller" and event["request_id"] == listing_id
+    assert post(seller, base + "/offer", offer).status_code == 409
+    assert outsider.get("/api/" + base).json["offers"] == []
+    assert buyer.get("/api/" + base).json["offers"][0]["note"] == offer["note"]
+    assert post(seller, base + "/accept", {"seller": "seller"}).status_code == 403
+    response = post(recreate(factory, buyer), base + "/accept", {"seller": "seller"})
+    assert response.status_code == 201, response.json
+    escrow_id = response.json["escrow_id"]
+    assert post(buyer, base + "/accept", {"seller": "seller"}).status_code == 409
+    assert "escrow_id" not in outsider.get("/api/" + base).json["request"]
+    assert recreate(factory, seller).get("/api/" + base).json["request"]["escrow_id"] == escrow_id
+    agreement = seller.get("/api/escrows/" + escrow_id).json
+    assert agreement["state"] == "PROPOSED" and agreement["seals"][0]["ok"]
+    assert agreement["terms"]["amount_wei"] == offer["amount_wei"]
+    assert 48 * 3600 - 2 <= agreement["terms"]["expires_at"] - agreement["terms"]["created_at"] <= 48 * 3600
+    assert offer["note"] in agreement["terms"]["description"]
+    assert post(seller, f"escrows/{escrow_id}/countersign").status_code == 200
 
 
 def test_private_access_notes_and_export(hosted):

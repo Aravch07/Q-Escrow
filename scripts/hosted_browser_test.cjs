@@ -39,9 +39,11 @@ async function consent(page){await page.getByRole('button',{name:'Confirm and si
   assert.ok(uploads.length>=Math.ceil(bytes.length/1048576));assert.ok(uploads.every(size=>size<=1048576));
   checks.push(`${bytes.length/1048576} MiB file hashes automatically; wrong file is blocked; delivery uploads in parts of at most 1 MiB`);
   await route(a,'escrows/'+id);assert.equal(await a.locator('#private-note').inputValue(),'Private review checklist');
-  const [file]=await Promise.all([a.waitForEvent('download',{timeout:180000}),a.getByRole('link',{name:/Download file/}).click()]);assert.equal(createHash('sha256').update(fs.readFileSync(await file.path())).digest('hex'),hash);
+  assert.equal(await a.getByRole('link',{name:/Download file/}).count(),0);
+  for(const endpoint of ['download','bundle','payload'])assert.equal((await a.request.get(url+'/api/escrows/'+id+'/'+endpoint)).status(),403);
   await a.getByRole('button',{name:'Go offline',exact:true}).click();await a.getByRole('button',{name:'Release payment',exact:true}).click();await consent(a);await a.locator('.instrument .badge.accepted').waitFor();
   assert.equal(await a.getByRole('button',{name:'Finish payment',exact:true}).isDisabled(),true);await a.getByRole('button',{name:'Connect to finish',exact:true}).click();await a.getByRole('button',{name:'Finish payment',exact:true}).click();await a.locator('.instrument .badge.settled').waitFor();
+  const [file]=await Promise.all([a.waitForEvent('download',{timeout:180000}),a.getByRole('link',{name:/Download file/}).click()]);assert.equal(createHash('sha256').update(fs.readFileSync(await file.path())).digest('hex'),hash);
   await route(b,'wallet');await b.getByRole('button',{name:'Claim earnings',exact:true}).click();await b.getByText('1 test ETH claimed.',{exact:true}).waitFor();
   checks.push('Private notes stay private; chunked download matches the SHA-256; offline approval, online settlement and exact seller claim work');
   await route(a,'escrows/'+id);await a.locator('.evidence-details>summary').click();await a.getByRole('tab',{name:'Signed bundle',exact:true}).click();

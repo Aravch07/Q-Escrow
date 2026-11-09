@@ -229,6 +229,7 @@ class Handler(BaseHTTPRequestHandler):
                           "/analytics.js": ("analytics.js", "text/javascript; charset=utf-8"),
                           "/showcase.js": ("showcase.js", "text/javascript; charset=utf-8"),
                           "/live.js": ("live.js", "text/javascript; charset=utf-8"),
+                          "/marketplace.js": ("marketplace.js", "text/javascript; charset=utf-8"),
                           "/future.css": ("future.css", "text/css; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8")}
                 if path.startswith("/assets/"):

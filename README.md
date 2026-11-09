@@ -10,7 +10,7 @@ Agree on the work, verify the exact file, and keep every signature and payment d
 
 **[Open the app](https://pq-escrow.vercel.app)** · **[Explore the interactive demo](https://pq-escrow.vercel.app/?demo=1#overview)** · **[Read the guide](docs/PROTOTYPE.md)**
 
-Post-quantum signatures · Automatic file verification · Workspace analytics
+Work marketplace · Protected delivery · Post-quantum signatures
 
 </div>
 
@@ -31,8 +31,10 @@ computer. The current release uses **simulated test ETH**; no real money moves.
 | What you need | What PQ-Escrow gives you |
 | --- | --- |
 | Clear expectations | A guided agreement builder with a partner, amount, deadline and optional reference file. |
+| A place to find work | Browse work categories, save requests, compare private offers and turn an accepted offer into a signed escrow. |
 | The right partner | Search seller usernames, including case-insensitive @username entry, with mouse or keyboard selection. |
 | The exact deliverable | Automatic SHA-256 fingerprinting. A different file is blocked when a reference fingerprint is agreed. |
+| A protected handoff | The online workspace shows watermarked PDF or image previews. Buyers get the original only after payment settles. |
 | Proof at each step | ML-DSA-65 signatures on terms, delivery and decisions, with exportable evidence. |
 | A clear next action | Buyer and seller views that guide each person through agreement, delivery, review and payment. |
 | Updates without reloading | Incoming agreements, deliveries, decisions and payment outcomes appear automatically, with in-app notifications. |
@@ -44,6 +46,19 @@ The inbox groups agreement cards by their current status. Each card shows the
 agreement name, counterparty, creator and latest update sender, with recent history
 inside the card. Filter by status, search names or usernames, or show unread
 updates only. Wallet and account notifications stay in a separate section.
+
+## Hire through the marketplace
+
+Sign in and open [Marketplace](https://pq-escrow.vercel.app/#marketplace).
+Post a brief and a test ETH budget in a category such as Python, Java, Images &
+Design, or Science & Research. Members can save requests and submit a private
+offer with a price and deadline. The requester can compare offers and accept one
+to create a signed escrow. The seller countersigns and delivers through Agreements.
+
+For PDF deliveries, the buyer sees flattened, watermarked images of the first
+and last pages. PNG, JPEG and WebP deliveries show a reduced watermarked image.
+Other file types show the signed receipt and fingerprint. The original remains
+locked through review and approval and unlocks when the ledger records payment.
 
 ## See the bigger picture
 

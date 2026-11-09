@@ -43,6 +43,7 @@ function saveBlob(blob,name){const url=URL.createObjectURL(blob),link=document.c
 async function downloadArtifact(id,kind){
  try{
   const meta=await api(`escrows/${id}/artifact`),parts=[];
+  if(meta.file_locked)throw Error('The original file unlocks only after payment settles.');
   if(kind==='download'&&!meta.file)throw Error('No delivered file is available yet.');
   if(meta.file){
    for(let offset=0;offset<meta.file.size;offset+=runtime.chunk_size){
@@ -84,11 +85,12 @@ async function updateInboxBadge(){
 }
 const inboxView={owner:null,data:null,status:'all',query:'',unreadOnly:false};
 function inboxEventName(event){
+ if(event.event==='marketplace_offer_received')return 'Offer for '+event.request_title;
  if(event.event==='bundle_imported')return ({PROPOSED:'Agreement received',LOCKED:'Terms signed',DELIVERED:'File delivered',ACCEPTED:'Buyer decision received',CANCELLED:'Cancellation received'})[event.observed_state]||'Agreement updated';
  return ({account_created:'Your workspace is ready',proposed:'Agreement created',countersigned:'Terms signed',delivered:'File delivered',decision_release:'Payment approved',decision_refund:'Refund requested',settled_release:'Payment completed',settled_refund:'Refund completed',agreement_cancelled:'Agreement cancelled',settled_cancelled:'Cancellation recorded',peer_settlement_observed:'Settlement confirmed',claim:'Earnings claimed',wallet_deposit:'Funds deposited',withdraw:'Funds withdrawn',buyer_funding_updated:'Buyer funding updated',funding_failure_recovered:'Agreement restored for retry',rejected:'Settlement needs review'})[event.event]||event.event.replaceAll('_',' ');
 }
 function inboxSender(sender){return sender?sender===me.identity.name?'You (@'+sender+')':'@'+sender:'System';}
-function inboxEventHTML(event){return `<strong>${esc(inboxEventName(event))}</strong><span class="inbox-event-source">From ${esc(inboxSender(event.sender))}</span><time datetime="${new Date(event.at*1000).toISOString()}">${esc(stamp(event.at))}</time>`;}
+function inboxEventHTML(event){const title=esc(inboxEventName(event));return `<strong>${event.request_id?`<a href="#marketplace/${esc(event.request_id)}">${title}</a>`:title}</strong><span class="inbox-event-source">From ${esc(inboxSender(event.sender))}</span><time datetime="${new Date(event.at*1000).toISOString()}">${esc(stamp(event.at))}</time>`;}
 function inboxAgreementCard(card){
  const latest=card.events[0],history=card.events.slice(1);
  return `<article class="card inbox-item agreement-inbox-card ${card.unread_count?'unread':''}" data-agreement="${esc(card.escrow_id)}"><div class="inbox-card-top"><div class="inbox-card-title"><h3><a href="#escrows/${card.escrow_id}" title="${esc(card.title)}">${esc(card.title)}</a></h3><p>${card.role==='buyer'?'Buying from':'Delivering to'} <strong>@${esc(card.counterparty)}</strong></p></div><span class="badge ${card.state.toLowerCase()}">${esc(card.status_label)}</span></div><p class="inbox-created-by">Created by ${esc(inboxSender(card.created_by))}</p><div class="inbox-latest"><span class="event-icon">${icon(latest.event.includes('settled')?'check':'bell')}</span><div>${inboxEventHTML(latest)}</div>${card.unread_count?`<span class="inbox-unread-label"><i class="unread-dot" aria-hidden="true"></i>${card.unread_count} new</span>`:''}</div>${history.length?`<details class="inbox-history" id="inbox-history-${card.escrow_id}"><summary>Recent updates (${history.length})</summary><ol>${history.map(event=>`<li>${inboxEventHTML(event)}</li>`).join('')}</ol></details>`:''}<a class="text-link inbox-open" href="#escrows/${card.escrow_id}">Open agreement ${icon('arrow')}</a></article>`;

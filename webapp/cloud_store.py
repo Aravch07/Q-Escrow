@@ -51,6 +51,21 @@ CREATE TABLE IF NOT EXISTS pqe_uploads(id TEXT PRIMARY KEY, owner TEXT NOT NULL 
  filename TEXT NOT NULL, purpose TEXT NOT NULL, escrow_id TEXT, created_at BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS pqe_chunks(upload_id TEXT NOT NULL REFERENCES pqe_uploads(id) ON DELETE CASCADE,
  part INTEGER NOT NULL, data BYTEA NOT NULL, PRIMARY KEY(upload_id,part));
+CREATE TABLE IF NOT EXISTS pqe_market_requests(
+ id TEXT PRIMARY KEY, requester TEXT NOT NULL REFERENCES pqe_users(username),
+ category TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, budget_wei TEXT NOT NULL,
+ created_at BIGINT NOT NULL, status TEXT NOT NULL DEFAULT 'open', seller TEXT REFERENCES pqe_users(username),
+ escrow_id TEXT);
+CREATE INDEX IF NOT EXISTS pqe_market_requests_feed ON pqe_market_requests(created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS pqe_market_requests_requester ON pqe_market_requests(requester);
+CREATE TABLE IF NOT EXISTS pqe_market_offers(
+ request_id TEXT NOT NULL REFERENCES pqe_market_requests(id), seller TEXT NOT NULL REFERENCES pqe_users(username),
+ amount_wei TEXT NOT NULL, hours INTEGER NOT NULL, note TEXT NOT NULL, created_at BIGINT NOT NULL,
+ PRIMARY KEY(request_id,seller));
+CREATE INDEX IF NOT EXISTS pqe_market_offers_seller ON pqe_market_offers(seller,request_id);
+CREATE TABLE IF NOT EXISTS pqe_market_saved(
+ member TEXT NOT NULL REFERENCES pqe_users(username), request_id TEXT NOT NULL REFERENCES pqe_market_requests(id),
+ PRIMARY KEY(member,request_id));
 """
 
 
