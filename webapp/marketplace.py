@@ -84,7 +84,7 @@ def marketplace_api(handler, route, post, name, party):
             VALUES (%s,%s,%s,%s,%s,%s,%s)""", (listing_id, name, category, title, description, budget, now))
         return handler.send(201, {"id": listing_id})
 
-    match = re.fullmatch(r"marketplace/([0-9a-f]{32})(?:/(offer|accept|close|save))?", route)
+    match = re.fullmatch(r"marketplace/([0-9a-f]{32})(?:/(offer|accept|close|save|messages))?", route)
     if not match:
         raise HTTPError(404, "Marketplace action not found")
     listing_id, action = match.groups()
@@ -92,6 +92,8 @@ def marketplace_api(handler, route, post, name, party):
     if not listing:
         raise HTTPError(404, "Work request not found")
     owner = listing["requester"] == name
+    if action == "messages":
+        return conversation(handler, listing, name, post)
     if not post and action is None:
         offers = conn.execute("""SELECT seller,amount_wei,hours,note,created_at FROM pqe_market_offers
             WHERE request_id=%s AND (%s OR seller=%s) ORDER BY created_at,seller""", (listing_id, owner, name)).fetchall()
@@ -141,3 +143,32 @@ def marketplace_api(handler, route, post, name, party):
     conn.execute("UPDATE pqe_market_requests SET status='matched',seller=%s,escrow_id=%s WHERE id=%s",
                  (seller, record.escrow_id, listing_id))
     return handler.send(201, {"escrow_id": record.escrow_id})
+
+
+def conversation(handler, listing, name, post):
+    conn = handler.connection
+    listing_id, buyer = listing["id"], listing["requester"]
+    seller = request.args.get("seller", "") if name == buyer else name
+    if not re.fullmatch(r"[a-z0-9_]{3,20}", seller):
+        raise HTTPError(404, "Conversation not found")
+    if not conn.execute("SELECT 1 FROM pqe_market_offers WHERE request_id=%s AND seller=%s",
+                        (listing_id, seller)).fetchone():
+        raise HTTPError(404, "Conversation not found")
+    if not post:
+        messages = conn.execute("""SELECT id,sender,message,created_at FROM pqe_market_messages
+            WHERE request_id=%s AND seller=%s ORDER BY id""", (listing_id, seller)).fetchall()
+        return handler.send(200, {"messages": messages})
+    if listing["status"] == "closed" or (listing["status"] == "matched" and listing["seller"] != seller):
+        raise HTTPError(409, "This conversation is read-only")
+    message = required_text(handler.body(), "message", 1600, "a message")
+    count = conn.execute("SELECT COUNT(*) FROM pqe_market_messages WHERE request_id=%s AND seller=%s",
+                         (listing_id, seller)).fetchone()[0]
+    if count >= 100:
+        raise HTTPError(429, "This conversation has reached 100 messages")
+    conn.execute("""INSERT INTO pqe_market_messages(request_id,seller,sender,message,created_at)
+        VALUES (%s,%s,%s,%s,%s)""", (listing_id, seller, name, message, handler.app.now()))
+    recipient = seller if name == buyer else buyer
+    handler.app.accounts.party(recipient, public_only=True).store.log("marketplace_message_received", data={
+        "actor": name, "request_id": listing_id, "title": listing["title"], "seller": seller,
+    })
+    return handler.send(201, {"ok": True})

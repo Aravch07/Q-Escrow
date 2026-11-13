@@ -194,6 +194,13 @@ def test_marketplace_creates_one_signed_escrow_and_keeps_offers_private(hosted):
     assert event["sender"] == "seller" and event["request_id"] == listing_id
     assert post(seller, base + "/offer", offer).status_code == 409
     assert outsider.get("/api/" + base).json["offers"] == []
+    thread = base + "/messages?seller=seller"
+    assert post(seller, thread, {"message": "Can I include a CSV example?"}).status_code == 201
+    assert outsider.get("/api/" + thread).status_code == 404
+    assert post(outsider, thread, {"message": "Outside the conversation"}).status_code == 404
+    assert buyer.get("/api/" + thread).json["messages"][0]["sender"] == "seller"
+    assert post(buyer, thread, {"message": "Yes, please use synthetic data."}).status_code == 201
+    assert seller.get("/api/" + thread).json["messages"][-1]["sender"] == "buyer"
     assert buyer.get("/api/" + base).json["offers"][0]["note"] == offer["note"]
     assert post(seller, base + "/accept", {"seller": "seller"}).status_code == 403
     response = post(recreate(factory, buyer), base + "/accept", {"seller": "seller"})

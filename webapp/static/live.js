@@ -47,6 +47,7 @@ async function applyLiveUpdate(){
 }
 function notifyLiveUpdate(events){
  if(events.some(event=>event.event==='marketplace_offer_received'))toast('You received a marketplace offer. Open My requests to review it.');
+ if(events.some(event=>event.event==='marketplace_message_received'))toast('You received a marketplace message. Open Inbox to read it.');
  const incoming=events.find(event=>['bundle_imported','peer_settlement_observed','buyer_funding_updated','funding_failure_recovered'].includes(event.event));if(!incoming)return;
  if(incoming.event==='buyer_funding_updated'){toast('Buyer funding updated. Payment can be checked again.');return;}if(incoming.event==='funding_failure_recovered'){toast('The agreement was restored. Your original file and signatures are preserved.');return;}
  const labels={PROPOSED:'New agreement received.',LOCKED:'Your agreement was signed.',DELIVERED:'New delivery received. Your workspace is updating.',ACCEPTED:'A delivery decision was received.',SETTLED:'Payment outcome recorded.',CANCELLED:'The agreement was cancelled.'};

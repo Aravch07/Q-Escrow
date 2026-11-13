@@ -51,7 +51,7 @@ def sender_for(event, agreement, viewer, body=None):
             role = ((body or {}).get("cancellation") or {}).get("cancelled_by")
             return agreement.get(role) if role in ("buyer", "seller") else None
         return None
-    if kind == "marketplace_offer_received":
+    if kind in ("marketplace_offer_received", "marketplace_message_received"):
         return event.get("data", {}).get("actor")
     return viewer if kind in ("account_created", "wallet_deposit", "withdraw", "claim") else None
 
@@ -72,8 +72,10 @@ def build_inbox(viewer, rows, records, seen_at=0, seen_id=None):
                      escrow_id=id if agreement else None, unread=unread,
                      sender=sender_for(raw, agreement, viewer, bodies.get(id)),
                      observed_state=raw.get("data", {}).get("state"))
-        if raw["event"] == "marketplace_offer_received":
+        if raw["event"] in ("marketplace_offer_received", "marketplace_message_received"):
             event.update(request_id=raw["data"]["request_id"], request_title=raw["data"]["title"])
+            if raw["event"] == "marketplace_message_received":
+                event["thread_seller"] = raw["data"].get("seller")
         events.append(event)
         unread_groups.setdefault(id, int(row.get("group_unread", int(unread))))
         if agreement:

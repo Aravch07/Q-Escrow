@@ -66,6 +66,12 @@ CREATE INDEX IF NOT EXISTS pqe_market_offers_seller ON pqe_market_offers(seller,
 CREATE TABLE IF NOT EXISTS pqe_market_saved(
  member TEXT NOT NULL REFERENCES pqe_users(username), request_id TEXT NOT NULL REFERENCES pqe_market_requests(id),
  PRIMARY KEY(member,request_id));
+CREATE TABLE IF NOT EXISTS pqe_market_messages(
+ id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ request_id TEXT NOT NULL, seller TEXT NOT NULL, sender TEXT NOT NULL REFERENCES pqe_users(username),
+ message TEXT NOT NULL, created_at BIGINT NOT NULL,
+ FOREIGN KEY(request_id,seller) REFERENCES pqe_market_offers(request_id,seller));
+CREATE INDEX IF NOT EXISTS pqe_market_messages_thread ON pqe_market_messages(request_id,seller,id);
 """
 
 

@@ -283,7 +283,7 @@ async function render(options={}) {
   else if(page==='lab')html=await lab();
   else if(page==='activity')html=await activityPage();
   else if(page==='inbox'&&runtime.hosted)html=await inboxPage();
-  else if(page==='marketplace'&&runtime.hosted)html=await marketplacePage(id);
+  else if(page==='marketplace'&&runtime.hosted)html=await marketplacePage(id,path.split('/')[2]);
   else if(page==='settings')html=settings();
   else if(page==='help')html=helpPage();
   else html=await overview();
@@ -404,7 +404,7 @@ document.addEventListener('click',async event=>{
   if(action==='toggle-password'){const field=$('#password');const show=field.type==='password';field.type=show?'text':'password';button.setAttribute('aria-label',show?'Hide password':'Show password');return;}
   if(action==='filter'){escrowFilter=button.dataset.filter;updateEscrowResults();return;}
   if(action==='reset-filter'){escrowFilter='all';escrowQuery='';$('#escrow-search').value='';updateEscrowResults();return;}
-  if(action==='auth-login'||action==='auth-register'){authMode=action==='auth-login'?'login':'register';authPage();return;}
+  if(action==='auth-login'||action==='auth-register'){authMode=action==='auth-login'?'login':'register';authPage();$('#username')?.focus();return;}
   if(action==='demo'){$('#username').value=button.dataset.name;$('#password').value='demo1234';$('#auth-error').textContent='';return;}
   if(action==='logout'){await api('logout',{});authPage();toast('You’re signed out.');return;}
   if(action==='network'){await api('online',{online:!me.online});toast(me.online?'Working offline. You can still sign and exchange files.':'Connected. You can now finish payments.');await render();return;}
@@ -436,7 +436,11 @@ document.addEventListener('submit',async event=>{
   if(form.id==='auth-form'){
    $('#auth-error').textContent='';const creds={username:data.get('username'),password:data.get('password')};
    if(authMode==='register'){if(runtime.hosted&&data.get('confirm_password')!==creds.password)throw Error('Your passwords do not match.');if(runtime.hosted)creds.display_name=data.get('display_name')||'';await api('register',creds);}
-   await api('login',creds);authMode='login';location.hash='overview';await render();return;
+   await api('login',creds);authMode='login';
+   if(!location.hash||location.hash==='#main')location.hash='overview';
+   await render();
+   scrollTo(0,0);
+   return;
   }
   if(form.id==='create-form'){
    if(createStep<3){advanceCreate();return;}

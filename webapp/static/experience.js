@@ -119,11 +119,76 @@ function enhanceExperience(){
   art.addEventListener('pointermove',event=>{const bounds=art.getBoundingClientRect();art.style.transform=`perspective(1000px) rotateY(${(event.clientX-bounds.left)/bounds.width*2-1}deg) rotateX(${1-(event.clientY-bounds.top)/bounds.height*2}deg)`;});art.addEventListener('pointerleave',()=>art.style.transform='');
  }
 }
+function mountProductLanding(){
+ const login=$('.login');
+ if(!login)return;
+ login.classList.add('landing-access');
+ $('.login-story',login).remove();
+ login.id='account-access';
+ login.setAttribute('role','region');
+ login.setAttribute('aria-label','Account access');
+ const chapters=[
+  ['Find the right person','Post a brief with a budget. Compare private offers and ask questions before choosing who to hire.'],
+  ['Review the delivery','See a watermarked preview of supported files and check the signed delivery receipt.'],
+  ['Settle and download','Once payment settles, the buyer can download the original and the seller can claim the payment.'],
+ ];
+ login.insertAdjacentHTML('beforebegin',`<main id="main" class="product-landing" tabindex="-1">
+ <header class="product-nav"><a class="logo" href="/" aria-label="PQ-Escrow home">${brand()}</a><div>
+ <a href="/?demo=1#overview">Explore demo</a><button class="secondary" data-product-access>Sign in</button></div></header>
+ <section class="product-hero">
+ <div class="product-hero-copy"><p class="eyebrow">PQ-Escrow marketplace</p>
+ <h1>Hire for the work.<br><em>Pay on delivery.</em></h1>
+ <p>Find a freelancer, sign the terms, and review protected deliveries in one workspace.</p>
+ <div class="product-actions"><a class="button" href="/?signup=1">Create account ${icon('arrow')}</a><button class="secondary" data-product-story>See how it works</button></div>
+ <p class="product-caption">Test ETH · Simulated payments</p></div>
+ <div class="product-hero-image"><img src="${VAULT}" alt="Interlocking ceramic and glass forms" fetchpriority="high"></div>
+ </section>
+ <section class="product-story" id="product-story" aria-label="How PQ-Escrow works">
+ <div class="product-stage" aria-hidden="true"><div class="product-turntable"><img src="${KNOT}" alt="" loading="lazy"></div></div>
+ <div class="product-chapters">${chapters.map(([title,description])=>`<article class="product-chapter"><div><h2>${title}</h2><p>${description}</p></div></article>`).join('')}</div>
+ </section>
+ <section class="product-next"><h2>Ready to post a brief?</h2><p>Create an account or open your workspace.</p><button data-product-access>Open account access ${icon('arrow')}</button></section>
+ </main>`);
+}
+
+let productFrame=0;
+function updateProductMotion(){
+ productFrame=0;
+ const stage=$('.product-story'),art=$('.product-turntable');
+ if(!stage||!art||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ const bounds=stage.getBoundingClientRect();
+ const progress=Math.max(0,Math.min(1,-bounds.top/Math.max(1,bounds.height-innerHeight)));
+ art.style.transform=`perspective(1100px) rotateY(${-28+56*progress}deg) rotateZ(${-14+28*progress}deg) scale(${.9+.15*Math.sin(progress*Math.PI)})`;
+}
+function queueProductMotion(){
+ if(!productFrame)productFrame=requestAnimationFrame(updateProductMotion);
+}
+addEventListener('scroll',queueProductMotion,{passive:true});
+addEventListener('resize',queueProductMotion);
+
 const experienceAuth=authPage,experienceRender=render;
-authPage=function(){experienceAuth();enhanceAuthExperience();};
+authPage=function(){
+ experienceAuth();
+ if(runtime.hosted&&!new URLSearchParams(location.search).has('signup')&&!location.hash.replace(/^#(overview)?$/,'')){
+  mountProductLanding();
+  queueProductMotion();
+ }else enhanceAuthExperience();
+};
 render=async function(options){chartObserver?.disconnect();const version=renderVersion+1;await experienceRender(options);if(me&&version===renderVersion)enhanceExperience();};
 
 document.addEventListener('click',event=>{
+ const access=event.target.closest('[data-product-access]');
+ const story=event.target.closest('[data-product-story]');
+ const behavior=matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
+ if(access){
+  $('#account-access')?.scrollIntoView({behavior});
+  $('#username')?.focus({preventScroll:true});
+  return;
+ }
+ if(story){
+  $('#product-story')?.scrollIntoView({behavior});
+  return;
+ }
  const button=event.target.closest('[data-experience]');if(!button)return;const action=button.dataset.experience;
  if(action==='tour'){tourIndex=0;showProductTour();return;}
  if(action==='tour-close'){$('#product-tour').close();return;}
