@@ -60,6 +60,10 @@ and last pages. PNG, JPEG and WebP deliveries show a reduced watermarked image.
 Other file types show the signed receipt and fingerprint. The original remains
 locked through review and approval and unlocks when the ledger records payment.
 
+Private Cloudflare R2 storage includes application cutoffs for storage, reads and
+writes. Settings shows the reserved allowance. See [storage controls](docs/R2-STORAGE.md)
+for deployment and migration details.
+
 ## See the bigger picture
 
 Track saved activity, released payments and agreement value. Switch between

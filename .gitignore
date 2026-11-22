@@ -25,4 +25,5 @@ docs/screenshots/failure-*.png
 docs/hosted-checks/
 
 .vercel
+**/.wrangler/
 .env*

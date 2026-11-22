@@ -104,8 +104,9 @@ class App:
             dict(label="Sequence number", ok=not self.chain.seq_used(t["buyer"]["evm_address"], t["seq"]) or bool(r.settlement), detail=f"Sequence {t['seq']} is consumed once"),
             dict(label="Audit chain", ok=party.store.verify_log(), detail="Local hash chain and saved head checked"),
         ]
+        records = party.store.metadata() if hasattr(party.store, "metadata") else party.store.all()
         conflict = sum(not x.settlement and not x.rejection and x.terms["buyer"]["evm_address"] == t["buyer"]["evm_address"]
-                       and x.terms["seq"] == t["seq"] for x in party.store.all()) > 1
+                       and x.terms["seq"] == t["seq"] for x in records) > 1
         checks.append(dict(label="Local sequence uniqueness", ok=not conflict, detail="Pending escrows cannot share a buyer sequence"))
         seals = []
         purposes = [("buyer", "Buyer terms", "buyer"), ("seller", "Seller terms", "seller"),

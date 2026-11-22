@@ -21,6 +21,8 @@ KEY = b"hosted-integration-test-key-32!!!"
 
 @pytest.fixture
 def hosted(monkeypatch):
+    monkeypatch.delenv("PQE_R2_GATEWAY", raising=False)
+    monkeypatch.delenv("PQE_R2_GATEWAY_SECRET", raising=False)
     url = os.environ.get("PQE_TEST_DATABASE_URL")
     if not url:
         pytest.skip("Set PQE_TEST_DATABASE_URL for isolated hosted integration checks")
@@ -316,9 +318,62 @@ def test_upload_ownership_parts_and_storage_budget(hosted):
     assert post(owner, f"uploads/{upload_id}/0", raw=b"{}").status_code == 200
     assert post(owner, f"uploads/{upload_id}/0", raw=b"[]").status_code == 409
     with connect() as connection:
-        connection.execute("INSERT INTO pqe_files VALUES(%s,%s,%s)", ("a" * 64, b"", 600 * 1024 * 1024))
+        connection.execute("INSERT INTO pqe_files(digest,data,size) VALUES(%s,%s,%s)", ("a" * 64, b"", 600 * 1024 * 1024))
     result = post(owner, "uploads/start", dict(size=1, filename="one-byte.json", purpose="verify"))
     assert result.status_code == 413 and "storage allowance" in result.json["error"]
+
+
+def test_r2_reservations_survive_rollback_and_stop_before_upload(hosted, monkeypatch):
+    from webapp import objects
+
+    app, _, connect = hosted
+    # Initialize all tables through the normal API.
+    account(app, "quota_owner")
+    monkeypatch.setattr(objects, "STORAGE_LIMIT", 4096)
+    monkeypatch.setattr(objects, "WRITE_LIMIT", 2)
+    with connect() as conn:
+        context = objects.connection_context.set(conn)
+        try:
+            objects.reserve("writes", 512)
+            with pytest.raises(ValueError):
+                with conn.transaction():
+                    objects.reserve("writes", 256)
+                    raise ValueError("Application request failed after the R2 write")
+            used = conn.execute("SELECT used FROM pqe_storage_budget WHERE name='bytes'").fetchone()[0]
+            assert used == 2816
+            with pytest.raises(cloud.HTTPError) as error:
+                objects.reserve("writes", 0)
+            assert error.value.status == 429
+            monkeypatch.setattr(objects, "WRITE_LIMIT", 10)
+            with pytest.raises(cloud.HTTPError) as error:
+                objects.reserve("writes", 6000)
+            assert error.value.status == 413
+            assert conn.execute("SELECT used FROM pqe_storage_budget WHERE name='bytes'").fetchone()[0] == used
+        finally:
+            objects.connection_context.reset(context)
+
+
+def test_r2_concurrent_reads_cannot_exceed_budget(hosted, monkeypatch):
+    from webapp import objects
+
+    app, _, connect = hosted
+    account(app, "quota_owner")
+    monkeypatch.setattr(objects, "READ_LIMIT", 2)
+
+    def read(_):
+        with connect() as conn:
+            context = objects.connection_context.set(conn)
+            try:
+                objects.reserve("reads")
+                return 200
+            except cloud.HTTPError as error:
+                return error.status
+            finally:
+                objects.connection_context.reset(context)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(read, range(4)))
+    assert sorted(results) == [200, 200, 429, 429]
 
 
 def test_cancellation_and_read_only_live_updates(hosted):

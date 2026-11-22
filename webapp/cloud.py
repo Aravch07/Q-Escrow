@@ -28,6 +28,7 @@ from .inbox import build_inbox
 from .marketplace import marketplace_api
 from .preview import PREVIEW_TYPES, render_preview
 from .server import App, Handler, STATIC
+from . import objects
 
 CHUNK = 1024 * 1024
 WRITE_LOCK = 7348261901
@@ -39,6 +40,33 @@ class CloudApp(App):
         self.root, self.offset, self.lock = Path(root), 0, threading.RLock()
         self.accounts = CloudAccounts(root, self.now, connection, key, request.headers.get("User-Agent", "Web browser"))
         self.chain = CloudLedger(connection, self.now)
+
+    def mirror(self, party):
+        for record in party.store.metadata():
+            if record.settlement or record.rejection:
+                continue
+            settlement = self.chain.settlement(record.escrow_id)
+            if settlement:
+                terms = record.terms
+                if (settlement["buyer"], settlement["seller"], settlement["amount_wei"], settlement["seq"]) != (
+                        terms["buyer"]["evm_address"], terms["seller"]["evm_address"], terms["amount_wei"], terms["seq"]):
+                    raise HTTPError(409, "Ledger settlement differs from saved terms")
+                record.settlement = settlement
+                party.store.put(record, "peer_settlement_observed")
+
+    def summary(self, party, record):
+        from dataclasses import asdict
+
+        result = asdict(record)
+        result.pop("payload_path", None)
+        outcome = ("CANCELLED" if record.cancellation else "REJECT" if record.rejection
+                   else "RELEASE" if record.acceptance and record.acceptance["decision"] == "release"
+                   else "REFUND" if record.acceptance or self.now() >= record.terms["expires_at"] else "HOLD")
+        result.update(role="buyer" if party.identity.name == record.terms["buyer"]["name"] else "seller",
+                      state=record.state, now=self.now(), bundle=record.bundle(include_payload=False),
+                      checks=[], seals=[], verification={"outcome": outcome, "checks": [],
+                      "reason": "Open the agreement to verify the delivery"})
+        return result
 
     def detail(self, party, record, include_payload=False):
         detail = super().detail(party, record, include_payload=False)
@@ -133,16 +161,24 @@ class CloudHandler(Handler):
         extension = Path(receipt["filename"]).suffix.lower()
         if extension not in PREVIEW_TYPES:
             raise HTTPError(415, "Previews support PDFs, PNG, JPEG and WebP")
-        stored = self.connection.execute("SELECT data FROM pqe_files WHERE digest=%s", (row["file_hash"],)).fetchone()
-        if not stored:
-            raise HTTPError(404, "Delivery file missing")
+        cached = self.connection.execute("SELECT body,object_key FROM pqe_file_previews WHERE digest=%s AND viewer=%s",
+                                          (row["file_hash"], name)).fetchone()
+        if cached:
+            return self.send(200, objects.get(cached["object_key"]) if cached["object_key"] else cached["body"])
         try:
             # PDFium calls must not overlap within a function instance.
             with PREVIEW_LOCK:
-                rendered = render_preview(bytes(stored[0]), extension, name)
+                rendered = render_preview(objects.file_bytes(self.connection, row["file_hash"]), extension, name)
+        except HTTPError:
+            raise
         except Exception as exc:
             logging.info("Delivery preview failed (%s)", type(exc).__name__)
             raise HTTPError(422, "This file could not be previewed. The original remains protected.") from None
+        key = f"previews/{row['file_hash']}/{sha256_bytes(name.encode())}" if objects.configured() else None
+        if key:
+            objects.put(key, canonical_json(rendered))
+        self.connection.execute("INSERT INTO pqe_file_previews(digest,viewer,body,created_at,object_key) VALUES(%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                                 (row["file_hash"], name, None if key else Jsonb(rendered), self.app.now(), key))
         return self.send(200, rendered)
 
     def upload(self, owner, upload_id, purpose=None, escrow_id=None):
@@ -151,11 +187,11 @@ class CloudHandler(Handler):
             raise HTTPError(404, "This upload expired. Choose the file again.")
         if purpose and row["purpose"] != purpose or escrow_id and row["escrow_id"] != escrow_id:
             raise HTTPError(400, "The upload belongs to a different action")
-        parts = self.connection.execute("SELECT part,data FROM pqe_chunks WHERE upload_id=%s ORDER BY part", (upload_id,)).fetchall()
+        parts = self.connection.execute("SELECT part,data,object_key FROM pqe_chunks WHERE upload_id=%s ORDER BY part", (upload_id,)).fetchall()
         expected = max(1, (row["size"] + CHUNK - 1) // CHUNK)
         if len(parts) != expected or [p["part"] for p in parts] != list(range(expected)):
             raise HTTPError(409, "The file is still uploading. Wait for it to finish.")
-        raw = b"".join(bytes(p["data"]) for p in parts)
+        raw = b"".join(objects.get(p["object_key"]) if p["object_key"] else bytes(p["data"]) for p in parts)
         if len(raw) != row["size"]:
             raise HTTPError(409, "The upload is incomplete. Choose the file again.")
         return row, raw
@@ -173,6 +209,34 @@ class CloudHandler(Handler):
         if route in ("login", "logout"):
             return super().api(route, post)
         name, party = self.authenticated()
+        if route == "storage" and not post:
+            cutoff = time.strftime("%Y-%m-%d", time.gmtime(time.time() - 35 * 86400))
+            rows = conn.execute("SELECT name,used FROM pqe_storage_budget")
+            counters = dict((row["name"], row["used"]) for row in rows)
+            return self.send(200, {
+                "provider": "Cloudflare R2" if objects.configured() else "Postgres",
+                "reserved_bytes": counters.get("bytes", 0), "byte_limit": objects.STORAGE_LIMIT,
+                "reads": sum(v for k,v in counters.items() if k.startswith("reads/") and k >= "reads/" + cutoff),
+                "writes": sum(v for k,v in counters.items() if k.startswith("writes/") and k >= "writes/" + cutoff),
+                "read_limit": objects.READ_LIMIT, "write_limit": objects.WRITE_LIMIT,
+                "legacy_files": conn.execute("SELECT COUNT(*) FROM pqe_files WHERE object_key IS NULL").fetchone()[0],
+            })
+        if route == "storage/migrate" and post:
+            if name not in os.environ.get("PQE_ADMIN_USERS", "").split(","):
+                raise HTTPError(403, "Administrator access required")
+            if not objects.configured():
+                raise HTTPError(409, "Cloudflare storage is not configured")
+            self.body()
+            rows = conn.execute("SELECT digest,data FROM pqe_files WHERE object_key IS NULL LIMIT 5").fetchall()
+            for row in rows:
+                raw, key = bytes(row["data"]), "deliveries/" + row["digest"]
+                if sha256_bytes(raw) != row["digest"]:
+                    raise HTTPError(409, "An existing file failed its hash check. Migration stopped.")
+                objects.put(key, raw)
+                if sha256_bytes(objects.get(key)) != row["digest"]:
+                    raise HTTPError(409, "Cloudflare copy failed verification. The database original is retained.")
+                conn.execute("UPDATE pqe_files SET object_key=%s,data=NULL WHERE digest=%s", (key, row["digest"]))
+            return self.send(200, {"migrated": len(rows)})
         if route == "marketplace" or route.startswith("marketplace/"):
             return marketplace_api(self, route, post, name, party)
         if route == "me" and not post:
@@ -259,7 +323,8 @@ class CloudHandler(Handler):
             if active[0] >= 5 or active[1] + size > 100 * 1024 * 1024:
                 raise HTTPError(429, "Finish your current uploads or try again in an hour")
             total = conn.execute("SELECT (SELECT COALESCE(SUM(size),0) FROM pqe_files)+(SELECT COALESCE(SUM(size),0) FROM pqe_uploads)").fetchone()[0]
-            if total + size > 600 * 1024 * 1024:
+            limit = objects.STORAGE_LIMIT if objects.configured() else 600 * 1024 * 1024
+            if total + size > limit:
                 raise HTTPError(413, "The shared test workspace has reached its storage allowance. Please try a smaller file later.")
             used = conn.execute("SELECT COALESCE(SUM(f.size),0) FROM pqe_files f WHERE f.digest IN (SELECT file_hash FROM pqe_records WHERE owner=%s)", (name,)).fetchone()[0]
             if used + size > 150 * 1024 * 1024:
@@ -267,6 +332,14 @@ class CloudHandler(Handler):
             upload_id = secrets.token_hex(16)
             conn.execute("INSERT INTO pqe_uploads VALUES(%s,%s,%s,%s,%s,%s,%s)", (upload_id, name, size, filename(data.get("filename", "delivery.bin")), purpose, escrow_id, self.app.now()))
             return self.send(201, {"upload_id": upload_id, "chunk_size": CHUNK})
+        upload_status = re.fullmatch(r"uploads/([0-9a-f]{32})/status", route)
+        if upload_status and not post:
+            row = conn.execute("SELECT size,filename,created_at FROM pqe_uploads WHERE id=%s AND owner=%s",
+                               (upload_status[1], name)).fetchone()
+            if not row or row["created_at"] < self.app.now() - 3600:
+                raise HTTPError(404, "Upload expired")
+            return self.send(200, {**row, "parts": [r[0] for r in conn.execute(
+                "SELECT part FROM pqe_chunks WHERE upload_id=%s ORDER BY part", (upload_status[1],))]})
         chunk = re.fullmatch(r"uploads/([0-9a-f]{32})/(\d+)", route)
         if chunk and post:
             row = conn.execute("SELECT * FROM pqe_uploads WHERE id=%s AND owner=%s", (chunk[1], name)).fetchone()
@@ -278,10 +351,16 @@ class CloudHandler(Handler):
             raw = self.body(CHUNK, raw=True)
             if len(raw) != min(CHUNK, max(0, row["size"] - part * CHUNK)):
                 raise HTTPError(400, "This file part is incomplete")
-            old = conn.execute("SELECT data FROM pqe_chunks WHERE upload_id=%s AND part=%s", (chunk[1], part)).fetchone()
-            if old and bytes(old[0]) != raw:
+            digest = sha256_bytes(raw)
+            old = conn.execute("SELECT data,digest FROM pqe_chunks WHERE upload_id=%s AND part=%s", (chunk[1], part)).fetchone()
+            if old and (old["digest"] != digest if old["digest"] else bytes(old["data"]) != raw):
                 raise HTTPError(409, "This file part already contains different bytes")
-            conn.execute("INSERT INTO pqe_chunks VALUES(%s,%s,%s) ON CONFLICT DO NOTHING", (chunk[1], part, raw))
+            if not old:
+                key = f"uploads/{row['created_at']}/{chunk[1]}/{part}" if objects.configured() else None
+                if key:
+                    objects.put(key, raw)
+                conn.execute("INSERT INTO pqe_chunks(upload_id,part,data,object_key,digest) VALUES(%s,%s,%s,%s,%s)",
+                             (chunk[1], part, None if key else raw, key, digest))
             return self.send(200, {"ok": True, "part": part})
         finish = re.fullmatch(r"escrows/([0-9a-f]{64})/deliver-upload", route)
         if finish and post:
@@ -314,10 +393,9 @@ class CloudHandler(Handler):
                 offset = request.args.get("offset", "0")
                 if not receipt or not re.fullmatch(r"[0-9]{1,8}", offset) or int(offset) > receipt["size"]:
                     raise HTTPError(400, "Invalid file offset")
-                raw = conn.execute("SELECT substring(data FROM %s FOR %s) FROM pqe_files WHERE digest=%s", (int(offset) + 1, CHUNK, row["file_hash"])).fetchone()
-                if not raw:
-                    raise HTTPError(404, "Delivery file missing")
-                return self.send(200, bytes(raw[0]), "application/octet-stream")
+                if int(offset) == receipt["size"]:
+                    return self.send(200, b"", "application/octet-stream")
+                return self.send(200, objects.file_bytes(conn, row["file_hash"], int(offset), CHUNK), "application/octet-stream")
             if artifact[2] == "artifact":
                 return self.send(200, {"bundle": {"format": "PQE-v1", **{k: body[k] for k in ("escrow_id", "terms", "signatures", "delivery", "acceptance")}, **({"cancellation": body["cancellation"]} if body.get("cancellation") else {})},
                                        "file": {"size": receipt["size"], "sha256": receipt["sha256"], "filename": receipt["filename"]} if unlocked else None,
@@ -326,6 +404,9 @@ class CloudHandler(Handler):
             raise HTTPError(403, "The shared live clock cannot be changed. Attack lab experiments use isolated practice copies.")
         if route == "escrows" and post:
             return self.send(201, self.app.detail(party, self.create_agreement(party, self.body())))
+        if route == "escrows" and not post:
+            self.app.mirror(party)
+            return self.send(200, {"escrows": [self.app.summary(party, record) for record in party.store.metadata()]})
         return super().api(route, post)
 
 
@@ -423,6 +504,7 @@ def create_app(database_url=None, session_key=None):
         connection = None
         try:
             secret = key(); connection = connect_database(database_url)
+            storage_context = objects.connection_context.set(connection)
             with schema_lock:
                 if not initialized[0]:
                     initialize_database(connection); initialized[0] = True
@@ -462,6 +544,7 @@ def create_app(database_url=None, session_key=None):
             return jsonify(error="The workspace is temporarily unavailable. Please try again."), 503
         finally:
             if connection:
+                objects.connection_context.reset(storage_context)
                 connection.close()
 
     return app

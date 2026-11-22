@@ -1,0 +1,11 @@
+{
+  "name": "pq-escrow-storage",
+  "main": "storage-worker.js",
+  "compatibility_date": "2026-11-22",
+  "account_id": "e69a841a4dd3f1e7b2d1335244b3feb8",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "pq-escrow-private" }
+  ]
+}

@@ -27,9 +27,28 @@ function transferProgress(label,percent){
  box.innerHTML=`<strong>${esc(label)}</strong><span>${Math.round(percent)}%</span><progress max="100" value="${percent}">${Math.round(percent)}%</progress>`;
 }
 async function uploadParts(file,purpose,escrowId,onProgress=()=>{}){
- const started=await api('uploads/start',{size:file.size,filename:file.name,purpose,escrow_id:escrowId});
+ const fingerprint=await fileFingerprint(file);
+ const resumeKey='pqe-upload/'+me.identity.name+'/'+purpose+'/'+(escrowId||'verify')+'/'+fingerprint;
+ let started,completed=new Set();
+ const previous=sessionStorage.getItem(resumeKey);
+ if(previous){
+  try{
+   const status=await api('uploads/'+previous+'/status');
+   if(status.size===file.size&&status.filename===file.name){
+    started={upload_id:previous,chunk_size:runtime.chunk_size};
+    completed=new Set(status.parts);
+   }
+  }catch(error){
+   if(error.status!==404)throw error;
+  }
+ }
+ if(!started){
+  started=await api('uploads/start',{size:file.size,filename:file.name,purpose,escrow_id:escrowId});
+  sessionStorage.setItem(resumeKey,started.upload_id);
+ }
  const count=Math.max(1,Math.ceil(file.size/started.chunk_size));
  for(let part=0;part<count;part++){
+  if(completed.has(part)){onProgress((part+1)/count*100);continue;}
   const bytes=await file.slice(part*started.chunk_size,(part+1)*started.chunk_size).arrayBuffer();
   for(let attempt=0;;attempt++){
    try{await api(`uploads/${started.upload_id}/${part}`,bytes,{raw:true});break;}
@@ -117,6 +136,9 @@ async function hostedSettings(){
  const [profile,{sessions}]=await Promise.all([api('profile'),api('sessions')]);
  return `<section class="card hosted-profile"><div class="card-title"><div><p class="eyebrow">Make it yours</p><h2>Your profile</h2></div></div><form id="profile-form"><label for="profile-name">Display name</label><div class="inline-field"><input id="profile-name" name="display_name" value="${esc(profile.display_name)}" maxlength="80" autocomplete="name"><button type="submit">Save profile</button></div><p class="fine">Your signing username remains <strong>${esc(me.identity.name)}</strong>.</p></form></section><section class="card sessions-card"><div class="card-title"><div><p class="eyebrow">Account security</p><h2>Active sessions</h2><p>Sign out a device you no longer use.</p></div><button class="secondary" data-hosted="revoke-others" ${sessions.length<2?'disabled':''}>Sign out other devices</button></div>${sessions.map(s=>`<div class="session-row">${icon('shield')}<div><strong>${s.current?'This browser':'Web session'}</strong><p class="session-device">${esc(s.device)}</p><small>Signed in ${esc(stamp(s.created_at))} · Expires ${esc(stamp(s.expires))}</small></div>${s.current?'<span class="badge verified">Current</span>':`<button class="ghost" data-hosted="revoke-session" data-session="${s.id}">Sign out</button>`}</div>`).join('')}</section>`;
 }
+function storageSettings(storage){
+ return `<section class="card hosted-profile"><h2>File storage</h2><p>${esc(storage.provider)} · Private deliveries</p><progress max="${storage.byte_limit}" value="${storage.reserved_bytes}" aria-label="Storage allowance used"></progress><p>${(storage.reserved_bytes/1e9).toFixed(3)} GB reserved of ${storage.byte_limit/1e9} GB</p><p class="fine">New uploads pause at the storage limit. Reservations include temporary uploads and failed attempts. Request cutoffs use a rolling 35-day window.</p><dl><div><dt>Read requests</dt><dd>${storage.reads.toLocaleString()} / ${storage.read_limit.toLocaleString()}</dd></div><div><dt>Write requests</dt><dd>${storage.writes.toLocaleString()} / ${storage.write_limit.toLocaleString()}</dd></div></dl>${me.identity.name==='arav'&&storage.legacy_files?`<p>${storage.legacy_files} older files remain in the database.</p><button class="secondary" data-hosted="migrate-storage">Move next files to Cloudflare</button>`:''}</section>`;
+}
 async function enhanceHosted(){
  if(!runtime.hosted||!me)return;
  document.body.classList.add('hosted');
@@ -126,8 +148,8 @@ async function enhanceHosted(){
  const banner=$('.offline-banner>span');if(banner)banner.textContent='Payments are paused. You can still sign and exchange files here. Connect to finish the payment.';
  const active=()=>version===renderVersion&&me&&(location.hash.slice(1)||'overview')===path;
  if(page==='settings'){
-  const html=await hostedSettings();if(!active())return;
-  $('.account-details').insertAdjacentHTML('beforebegin',html);
+  const [html,storage]=await Promise.all([hostedSettings(),api('storage')]);if(!active())return;
+  $('.account-details').insertAdjacentHTML('beforebegin',html+storageSettings(storage));
   $('.account-details>p').textContent='Your saved signing key is encrypted with your password. Each active session is separately encrypted and can be revoked above. Signing runs on the hosted server after your confirmation.';
   const paymentCopy=$('.two-col .card:first-child p');if(paymentCopy)paymentCopy.textContent='Connect to finish payments and move test funds. Pausing payments still lets you sign and exchange files. This hosted workspace needs an internet connection.';
  }else if(page==='escrows'&&id){
@@ -163,6 +185,7 @@ document.addEventListener('click',async event=>{
   button.disabled=true;
   if(button.dataset.hosted==='read-inbox'){await api('notifications',{});lastUnread=0;await render();}
   if(button.dataset.hosted==='copy-invite'){await navigator.clipboard.writeText(location.origin);toast('Invite link copied. Share it with your partner.');}
+  if(button.dataset.hosted==='migrate-storage'){const result=await api('storage/migrate',{});toast(result.migrated+' files verified and moved to Cloudflare.');await render();}
   if(button.dataset.hosted==='revoke-others'||button.dataset.hosted==='revoke-session'){await api('sessions/revoke',{session_id:button.dataset.session||'others'});toast('Selected sessions signed out.');await render();}
  }catch(error){toast(error.message,true);}finally{button.disabled=false;}
 });

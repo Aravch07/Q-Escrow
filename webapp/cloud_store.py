@@ -21,6 +21,8 @@ from escrow.identity import Identity
 from escrow.models import Record
 from escrow.protocol import Party
 from .accounts import Accounts, HTTPError
+from .platform_schema import SCHEMA as PLATFORM_SCHEMA
+from . import objects
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS pqe_users(
@@ -94,6 +96,7 @@ def connect_database(url=None):
 
 def initialize_database(connection):
     connection.execute(SCHEMA)
+    connection.execute(PLATFORM_SCHEMA)
     connection.commit()
 
 
@@ -197,11 +200,12 @@ class CloudStore:
     def put(self, record, event="updated"):
         from dataclasses import asdict
         body, digest = asdict(record), None
-        if record.payload_path:
+        if record.payload_path and Path(record.payload_path).is_file():
             data = Path(record.payload_path).read_bytes()
-            digest = sha256_bytes(data)
-            self.connection.execute("INSERT INTO pqe_files VALUES(%s,%s,%s) ON CONFLICT DO NOTHING", (digest, data, len(data)))
+            digest = objects.save_file(self.connection, data)
             body["payload_path"] = "vault/" + record.escrow_id + "/payload"
+        elif record.delivery:
+            digest = record.delivery["sha256"]
         self.connection.execute("INSERT INTO pqe_records VALUES(%s,%s,%s,%s) ON CONFLICT(owner,id) DO UPDATE SET body=excluded.body,file_hash=excluded.file_hash",
                                 (self.owner, record.escrow_id, Jsonb(body), digest))
         self._append(event, record.escrow_id, {"state": record.state})
@@ -211,11 +215,8 @@ class CloudStore:
         if row["file_hash"]:
             target = self.vault / record.escrow_id / "payload"
             if not target.is_file():
-                data = self.connection.execute("SELECT data FROM pqe_files WHERE digest=%s", (row["file_hash"],)).fetchone()
-                if not data:
-                    raise ValueError("The saved delivery is missing")
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(bytes(data[0]))
+                target.write_bytes(objects.file_bytes(self.connection, row["file_hash"]))
             record.payload_path = str(target)
         return record
 
@@ -228,6 +229,10 @@ class CloudStore:
     def all(self):
         rows = self.connection.execute("SELECT body,file_hash FROM pqe_records WHERE owner=%s ORDER BY id", (self.owner,)).fetchall()
         return [self._record(row) for row in rows]
+
+    def metadata(self):
+        return [Record(**copy.deepcopy(row["body"])) for row in self.connection.execute(
+            "SELECT body FROM pqe_records WHERE owner=%s ORDER BY id", (self.owner,))]
 
     def next_seq(self, buyer_key_hash):
         row = self.connection.execute("INSERT INTO pqe_sequences VALUES(%s,%s,2) ON CONFLICT(owner,buyer) DO UPDATE SET next=pqe_sequences.next+1 RETURNING next-1", (self.owner, buyer_key_hash)).fetchone()
