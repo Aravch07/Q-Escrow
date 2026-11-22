@@ -120,36 +120,166 @@ function mountProductLanding(){
  login.id='account-access';
  login.setAttribute('role','region');
  login.setAttribute('aria-label','Account access');
- const chapters=[
-  ['Agree on the brief','Post what you need and compare offers. Use private messages to settle the details before signing.'],
-  ['Review the delivery','Check the signed receipt and watermarked preview. The original file stays protected while you review.'],
-  ['Complete the handover','Approve and settle the payment to unlock the original. The agreement keeps the signatures and payment record.'],
+ const stages=[
+  ['Agree','A brief worth signing.','Choose the scope, payment and deadline. Both people sign the same terms.'],
+  ['Deliver','The work arrives protected.','The seller sends the file. The buyer sees a watermarked preview and a signed receipt.'],
+  ['Settle','The original is ready.','The buyer approves the work and finishes payment. The original file becomes available.'],
  ];
- login.insertAdjacentHTML('beforebegin',`<main id="main" class="product-landing" tabindex="-1">
+ login.insertAdjacentHTML('beforebegin',`<main id="main" class="product-landing motion-site" tabindex="-1">
  <header class="product-nav"><a class="logo" href="/" aria-label="PQ-Escrow home">${brand()}</a><div>
- <a href="/?demo=1#overview">Sample workspace</a><button class="secondary" data-product-access>Sign in</button><a class="button" href="/?signup=1">Create account</a></div></header>
- <section class="product-hero">
- <div class="product-hero-copy"><p class="eyebrow">A marketplace for commissioned work</p>
- <h1>Good work starts<br>with clear terms.</h1>
- <p>Find someone for your next project. Agree on the details, review the delivery, and make the handover in one place.</p>
- <div class="product-actions"><a class="button" href="/?signup=1">Post your first request ${icon('arrow')}</a><button class="secondary" data-product-story>How it works</button></div>
- <p class="product-caption">Currently using test ETH. Payments are simulated.</p></div>
- <aside class="product-document" aria-label="Example agreement">
- <div class="document-heading"><span>PQ / Escrow</span><span>Example agreement</span></div>
- <h2>A small project.<br>Everything agreed.</h2>
- <dl><div><dt>Scope</dt><dd>Python report & usage guide</dd></div><div><dt>Delivery window</dt><dd>48 hours</dd></div><div><dt>Agreed payment</dt><dd>1 test ETH</dd></div></dl>
- <div class="document-receipt">${icon('file')}<div><strong>report.pdf</strong><span>Preview available · Original protected</span></div></div>
- <div class="document-signatures"><span>${icon('check')} Client signed</span><span>${icon('check')} Freelancer signed</span></div>
- </aside>
+ <button class="product-nav-link" data-product-story>How it works</button><a href="/?demo=1#overview">Explore workspace</a>
+ <button class="secondary" data-product-access>Sign in</button><a class="button" href="/?signup=1">Get started ${icon('arrow')}</a></div></header>
+ <section class="motion-hero">
+ <div class="motion-hero-copy" data-enter><p class="eyebrow">PQ-Escrow / Work marketplace</p>
+ <h1>From the first brief<br>to the <span>final file.</span></h1>
+ <p>Find the right person, agree on the work, and make a protected handover. Every step stays with your project.</p>
+ <div class="product-actions"><a class="button" href="/?signup=1">Start a project ${icon('arrow')}</a><a class="button secondary" href="/?demo=1#overview">Explore the workspace</a></div>
+ <p class="motion-disclaimer">Test ETH payments · No real money moves</p></div>
+ <div class="hero-workspace" data-enter aria-label="Interactive sample project">
+ <div class="demo-topbar"><span class="demo-window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Project workspace</span><span class="demo-label">Example</span></div>
+ <div class="demo-project"><div><p>Python / Data analysis</p><h2>Quarterly research report</h2></div><span class="demo-status" data-demo-status>Terms agreed</span></div>
+ <div class="demo-progress" aria-label="Sample project stage">${stages.map(([label],i)=>`<button type="button" data-demo-step="${i}" aria-pressed="${i===0}"><span>${icon(i===0?'check':'circle')}</span>${label}</button>`).join('')}</div>
+ <div class="demo-main"><div class="demo-file"><div class="demo-file-mark">${icon('file')}<span>PDF</span></div>
+ <div><strong>research-report.pdf</strong><p data-demo-file>Awaiting delivery</p></div><span class="demo-file-lock" data-demo-lock>${icon('lock')}</span></div>
+ <div class="demo-preview" data-demo-preview aria-hidden="true"><div class="preview-sheet"><span>QUARTERLY RESEARCH</span><strong>From data<br>to decisions.</strong><div class="preview-bars"><i></i><i></i><i></i><i></i><i></i><i></i></div><small>Watermarked sample</small></div></div>
+ <div class="demo-payment"><span>Agreed payment<strong>1.00 <small>test ETH</small></strong></span><span data-demo-payment>Awaiting review</span></div></div>
+ <div class="demo-footer"><span data-demo-note>Both people have signed the terms.</span><button class="ghost" data-demo-next>See delivery ${icon('arrow')}</button></div>
+ </div>
  </section>
- <section class="product-story" id="product-story" aria-label="How PQ-Escrow works">
- <div class="product-story-heading"><p class="eyebrow">From request to delivery</p><h2>How a project<br>moves forward.</h2></div>
- <div class="product-chapters">${chapters.map(([title,description],index)=>`<article class="product-chapter"><span aria-hidden="true">${index+1}</span><div><h3>${title}</h3><p>${description}</p></div></article>`).join('')}</div>
+ <div class="product-capabilities" data-enter><span>${icon('peer')}Private project conversations</span><span>${icon('shield')}Signed delivery receipts</span><span>${icon('lock')}Protected originals</span></div>
+ <section class="handover-section" id="product-story" aria-label="How the handover works">
+ <div class="handover-sticky">
+ <div class="handover-heading"><p class="eyebrow">A project, step by step</p><h2>Follow the<br><span>handover.</span></h2><p>Scroll to see how a file moves from a signed agreement to a completed project.</p>
+ <div class="handover-tabs" aria-label="Handover chapters">${stages.map(([label],i)=>`<button data-story-step="${i}" aria-pressed="${i===0}">${label}</button>`).join('')}</div>
+ <div class="handover-copy" aria-live="polite"><h3 data-story-title>${stages[0][1]}</h3><p data-story-copy>${stages[0][2]}</p></div></div>
+ <div class="handover-stage" data-story-stage="0" aria-label="Illustrated handover">
+ <div class="handover-grid" aria-hidden="true"></div>
+ <div class="file-assembly">
+ <div class="assembly-layer assembly-terms"><small>SIGNED AGREEMENT</small><h3>Research report</h3><dl><div><dt>Scope</dt><dd>Report & source files</dd></div><div><dt>Payment</dt><dd>1 test ETH</dd></div></dl><span>${icon('check')} Client & freelancer signed</span></div>
+ <div class="assembly-layer assembly-file"><span class="assembly-file-icon">${icon('file')}</span><div><small>DELIVERY</small><h3>research-report.pdf</h3></div><div class="assembly-watermark">PREVIEW</div></div>
+ <div class="assembly-layer assembly-receipt"><span>${icon('shield')} Signed delivery receipt</span><code>SHA-256 · 94b3…0f2a</code></div>
+ <div class="assembly-unlocked">${icon('check')} Payment settled · Original unlocked</div>
+ </div>
+ <div class="handover-stage-caption"><span>Illustrated example · Test funds</span><span data-story-counter>01 / 03</span></div>
+ </div>
+ </div>
  </section>
- <footer class="product-next"><div><strong>PQ / Escrow</strong><p>For files, code, design, and research.</p></div><a href="/?signup=1">Create an account ${icon('arrow')}</a></footer>
+ <section class="project-fields" data-enter><div><p class="eyebrow">Bring your next brief</p><h2>Find a specialist<br>for the work.</h2></div><div class="project-fields-list">
+ ${[['Python & Java','Scripts, applications and development.'],['Images & design','Illustrations, assets and visual work.'],['Science & research','Analysis, reports and research support.']].map(([title,description])=>`<a href="/?signup=1"><span><strong>${title}</strong><small>${description}</small></span>${icon('arrowUp')}</a>`).join('')}</div></section>
+ <section class="product-closing" data-enter><p class="eyebrow">Start with the details</p><h2>What are you<br>working on next?</h2><a class="button" href="/?signup=1">Post a request ${icon('arrow')}</a></section>
+ <footer class="product-next"><div><strong>PQ / Escrow</strong><p>Agreements, deliveries and payment records.</p></div><a href="/?demo=1#overview">Explore the sample workspace ${icon('arrow')}</a></footer>
  </main>`);
+ mountProductMotion(stages);
 
 }
+
+const productMotion={root:null,observer:null,frame:0,stages:[],step:0,heroStep:0,reduce:false};
+
+function stopProductMotion(){
+ productMotion.observer?.disconnect();
+ cancelAnimationFrame(productMotion.frame);
+ productMotion.frame=0;
+ productMotion.root=null;
+}
+
+function mountProductMotion(stages){
+ stopProductMotion();
+ const root=$('.motion-site');
+ if(!root)return;
+ Object.assign(productMotion,{root,stages,step:-1,heroStep:0,reduce:matchMedia('(prefers-reduced-motion: reduce)').matches});
+ if(!productMotion.reduce&&'IntersectionObserver' in window){
+  root.classList.add('motion-ready');
+  productMotion.observer=new IntersectionObserver(entries=>{
+   for(const entry of entries)if(entry.isIntersecting){
+    entry.target.classList.add('entered');
+    productMotion.observer.unobserve(entry.target);
+   }
+  },{threshold:.12});
+  root.querySelectorAll('[data-enter]').forEach(element=>productMotion.observer.observe(element));
+ }
+ updateHandover(0);
+ setSampleStage(0);
+ queueHandoverMotion();
+}
+
+function updateHandover(step){
+ const root=productMotion.root;
+ if(!root||step===productMotion.step)return;
+ productMotion.step=step;
+ $('[data-story-title]',root).textContent=productMotion.stages[step][1];
+ $('[data-story-copy]',root).textContent=productMotion.stages[step][2];
+ $('[data-story-stage]',root).dataset.storyStage=step;
+ $('[data-story-counter]',root).textContent='0'+(step+1)+' / 03';
+ root.querySelectorAll('[data-story-step]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.storyStep)===step)));
+}
+
+function setSampleStage(step){
+ const root=productMotion.root;
+ if(!root)return;
+ productMotion.heroStep=step;
+ const workspace=$('.hero-workspace',root);
+ workspace.dataset.stage=step;
+ root.querySelectorAll('[data-demo-step]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.demoStep)===step)));
+ $('[data-demo-status]',root).textContent=['Terms agreed','Ready for review','Project completed'][step];
+ $('[data-demo-file]',root).textContent=['Awaiting delivery','Preview available · Original protected','Original file available'][step];
+ $('[data-demo-payment]',root).textContent=['Awaiting delivery','Waiting for approval','Payment settled'][step];
+ $('[data-demo-note]',root).textContent=['Both people have signed the terms.','Only a watermarked preview is visible.','The buyer can now download the original.'][step];
+ $('[data-demo-next]',root).innerHTML=['See delivery','Finish example','Replay example'][step]+' '+icon(step===2?'refresh':'arrow');
+ $('[data-demo-lock]',root).innerHTML=icon(step===2?'check':'lock');
+}
+
+function renderHandoverMotion(){
+ productMotion.frame=0;
+ const root=productMotion.root;
+ if(!root?.isConnected||productMotion.reduce)return;
+ const section=$('.handover-section',root),bounds=section.getBoundingClientRect();
+ const progress=Math.max(0,Math.min(1,(76-bounds.top)/Math.max(1,bounds.height-innerHeight+76)));
+ const stage=$('.file-assembly',root);
+ stage.style.setProperty('--turn',(-18+progress*36)+'deg');
+ stage.style.setProperty('--roll',(-6+progress*9)+'deg');
+ stage.style.setProperty('--spread',(Math.sin(progress*Math.PI)*68)+'px');
+ updateHandover(progress<.34?0:progress<.72?1:2);
+}
+
+function queueHandoverMotion(){
+ if(productMotion.root&&!productMotion.frame)productMotion.frame=requestAnimationFrame(renderHandoverMotion);
+}
+addEventListener('scroll',queueHandoverMotion,{passive:true});
+addEventListener('resize',queueHandoverMotion);
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',event=>{
+ productMotion.reduce=event.matches;
+ productMotion.root?.classList.toggle('motion-ready',!event.matches);
+ if(event.matches)productMotion.root?.querySelector('.file-assembly')?.removeAttribute('style');
+ else queueHandoverMotion();
+});
+
+document.addEventListener('pointermove',event=>{
+ const workspace=event.target.closest('.hero-workspace');
+ if(!workspace||productMotion.reduce||event.pointerType==='touch')return;
+ const bounds=workspace.getBoundingClientRect();
+ workspace.style.setProperty('--tilt-x',((.5-(event.clientY-bounds.top)/bounds.height)*5)+'deg');
+ workspace.style.setProperty('--tilt-y',(((event.clientX-bounds.left)/bounds.width-.5)*6)+'deg');
+});
+document.addEventListener('pointerout',event=>{
+ const workspace=event.target.closest('.hero-workspace');
+ if(workspace&&!workspace.contains(event.relatedTarget)){
+  workspace.style.removeProperty('--tilt-x');
+  workspace.style.removeProperty('--tilt-y');
+ }
+});
+document.addEventListener('click',event=>{
+ const demo=event.target.closest('[data-demo-step],[data-demo-next]');
+ if(demo){setSampleStage(demo.dataset.demoStep===undefined?(productMotion.heroStep+1)%3:Number(demo.dataset.demoStep));return;}
+ const chapter=event.target.closest('[data-story-step]');
+ if(chapter){
+  const step=Number(chapter.dataset.storyStep);
+  updateHandover(step);
+  if(!productMotion.reduce){
+   const section=$('.handover-section'),distance=section.offsetHeight-innerHeight+76;
+   window.scrollTo({top:scrollY+section.getBoundingClientRect().top-76+distance*[0,.5,.98][step],behavior:'smooth'});
+  }
+ }
+});
 
 const experienceAuth=authPage,experienceRender=render;
 authPage=function(){
@@ -163,7 +293,7 @@ authPage=function(){
   }
  }else enhanceAuthExperience();
 };
-render=async function(options){chartObserver?.disconnect();const version=renderVersion+1;await experienceRender(options);if(me&&version===renderVersion)enhanceExperience();};
+render=async function(options){chartObserver?.disconnect();const version=renderVersion+1;await experienceRender(options);if(me&&version===renderVersion){stopProductMotion();enhanceExperience();}};
 
 document.addEventListener('click',event=>{
  const access=event.target.closest('[data-product-access]');
