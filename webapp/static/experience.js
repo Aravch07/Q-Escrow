@@ -153,9 +153,14 @@ function mountProductLanding(){
 
 const experienceAuth=authPage,experienceRender=render;
 authPage=function(){
+ const wasLanding=Boolean($('.product-landing'));
  experienceAuth();
  if(runtime.hosted&&!new URLSearchParams(location.search).has('signup')&&!location.hash.replace(/^#(overview)?$/,'')){
   mountProductLanding();
+  if(!wasLanding){
+   $('#username')?.blur();
+   requestAnimationFrame(()=>scrollTo(0,0));
+  }
  }else enhanceAuthExperience();
 };
 render=async function(options){chartObserver?.disconnect();const version=renderVersion+1;await experienceRender(options);if(me&&version===renderVersion)enhanceExperience();};
