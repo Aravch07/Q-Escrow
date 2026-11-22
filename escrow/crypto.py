@@ -6,6 +6,7 @@ from pathlib import Path
 from dilithium_py.ml_dsa import ML_DSA_65
 
 CONTEXTS = {
+    "scopeguard": b"PQE-v2/scopeguard/hash",
     "buyer": b"PQE-v1/terms/buyer",
     "seller": b"PQE-v1/terms/seller",
     "delivery": b"PQE-v1/delivery",

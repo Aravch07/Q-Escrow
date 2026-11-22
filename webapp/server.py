@@ -20,6 +20,7 @@ from escrow.protocol import (MAX_PAYLOAD, Party, propose, countersign, deliver, 
 from escrow.reconcile import verify_offline, reconcile
 from escrow.store import Store
 from .accounts import Accounts, HTTPError
+from .scopeguard import install as install_scopeguard, scopeguard_api
 
 STATIC = Path(__file__).parent / "static"
 
@@ -32,6 +33,7 @@ class App:
         self.lock = threading.RLock()
         self.accounts = Accounts(self.root, self.now)
         with self.accounts.connect() as db:
+            install_scopeguard(db)
             self.offset = int(db.execute("SELECT value FROM meta WHERE key='offset'").fetchone()[0])
         self.chain = LocalLedger(self.root / "ledger.json", min_lock=min_lock, clock=self.now)
         if seed_demo:
@@ -231,6 +233,8 @@ class Handler(BaseHTTPRequestHandler):
                           "/showcase.js": ("showcase.js", "text/javascript; charset=utf-8"),
                           "/live.js": ("live.js", "text/javascript; charset=utf-8"),
                           "/marketplace.js": ("marketplace.js", "text/javascript; charset=utf-8"),
+                          "/scopeguard.js": ("scopeguard.js", "text/javascript; charset=utf-8"),
+                          "/scopeguard.css": ("scopeguard.css", "text/css; charset=utf-8"),
                           "/future.css": ("future.css", "text/css; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8")}
                 if path.startswith("/assets/"):
@@ -271,6 +275,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, {"ok": True}, headers=self.cookie("", True))
         username = a.authenticate(self.token())
         party = a.party(username)
+        if route == "scopeguard" or route.startswith("scopeguard/"):
+            return scopeguard_api(self, route, post, username, party)
         if a.online(username):
             self.app.mirror(party)
         if route == "me" and not post:

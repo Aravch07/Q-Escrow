@@ -2,9 +2,9 @@
 
 <img src="webapp/static/assets/mark.svg" width="48" alt="PQ-Escrow">
 
-# PQ-Escrow
+# PQ-Escrow 2.0 — ScopeGuard AI
 
-### Clear agreements. Verified delivery.
+### Trust before transaction.
 
 Agree on the work, verify the exact file, and keep every signature and payment decision in one workspace.
 
@@ -17,6 +17,18 @@ Work marketplace · Protected delivery · Post-quantum signatures
 ![PQ-Escrow workspace with agreements, balances and next actions](docs/images/workspace.png)
 
 *The current workspace, shown with clearly labelled sample data.*
+
+## ScopeGuard AI: protect the scope before settling
+
+Create editable requirement proposals, sign canonical agreement hashes with ML-DSA-65, detect proposed scope changes, inspect delivery evidence and resolve disagreements through matching approvals. Milestones reserve simulated test ETH from the existing available test wallet. No real money moves.
+
+![ScopeGuard dashboard with clearly labelled local example data](docs/images/scopeguard-dashboard.png)
+
+![Isolated competition demonstration reaching a mutual revision decision](docs/images/scopeguard-demo.png)
+
+**[Open ScopeGuard](https://pq-escrow.vercel.app/#scopeguard)** · **[Run the signed walkthrough](https://pq-escrow.vercel.app/#scope-demo)** · **[Setup, demo and verification guide](docs/SCOPEGUARD.md)**
+
+Analysis currently uses explicitly labelled deterministic demo rules, not a remote AI model. File fingerprints prove identity, not quality. FairResolve summarizes evidence; it never decides payments. Milestone reservations are conditional database-backed test balances, not Solidity locks. Existing PQE-v1 agreements and offline tools remain available.
 
 ## From an agreement to a verified handoff
 

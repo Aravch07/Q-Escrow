@@ -26,6 +26,7 @@ from .accounts import HTTPError
 from .cloud_store import CloudAccounts, CloudLedger, connect_database, initialize_database
 from .inbox import build_inbox
 from .marketplace import marketplace_api
+from .scopeguard import scopeguard_api
 from .preview import PREVIEW_TYPES, render_preview
 from .server import App, Handler, STATIC
 from . import objects
@@ -209,6 +210,8 @@ class CloudHandler(Handler):
         if route in ("login", "logout"):
             return super().api(route, post)
         name, party = self.authenticated()
+        if route == "scopeguard" or route.startswith("scopeguard/"):
+            return scopeguard_api(self, route, post, name, party)
         if route == "storage" and not post:
             cutoff = time.strftime("%Y-%m-%d", time.gmtime(time.time() - 35 * 86400))
             rows = conn.execute("SELECT name,used FROM pqe_storage_budget")
@@ -447,6 +450,8 @@ def create_app(database_url=None, session_key=None):
     @app.get("/showcase.js")
     @app.get("/live.js")
     @app.get("/marketplace.js")
+    @app.get("/scopeguard.js")
+    @app.get("/scopeguard.css")
     @app.get("/future.css")
     @app.get("/style.css")
     def static():

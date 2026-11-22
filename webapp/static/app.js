@@ -271,10 +271,11 @@ async function render(options={}) {
  const version=++renderVersion;
  try {me=await api('me');}catch(error){if(version===renderVersion){authPage();if(error.status===0)$('#auth-error').textContent=error.message;else if(error.message.includes('unlock'))toast(error.message);}return;}
  if(version!==renderVersion)return;
- if(!options.background)shell();const activeNav=$('.primary-nav [aria-current="page"]');if(activeNav&&!options.background)activeNav.scrollIntoView({block:'nearest',inline:'nearest'});const path=location.hash.slice(1)||'overview';const [page,id]=path.split('/');
+ if(!options.background)shell();const activeNav=$('.primary-nav [aria-current="page"]');if(activeNav&&!options.background)activeNav.scrollIntoView({block:'nearest',inline:'nearest'});const path=location.hash.slice(1)||(runtime.showcase?'overview':'scopeguard');const [page,id]=path.split('/');
  try {
   let html;
-  if(page==='escrows'&&id) html=await detail(id);
+  if(typeof sgPages!=='undefined'&&sgPages.includes(page))html=await scopeguardPage(page,id);
+  else if(page==='escrows'&&id) html=await detail(id);
    else if(page==='analytics')html=await analyticsPage();
   else if(page==='escrows')html=await escrowList(options);
   else if(page==='wallet')html=await wallet();

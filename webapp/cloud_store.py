@@ -22,6 +22,7 @@ from escrow.models import Record
 from escrow.protocol import Party
 from .accounts import Accounts, HTTPError
 from .platform_schema import SCHEMA as PLATFORM_SCHEMA
+from .scopeguard import install as install_scopeguard
 from . import objects
 
 SCHEMA = """
@@ -97,6 +98,7 @@ def connect_database(url=None):
 def initialize_database(connection):
     connection.execute(SCHEMA)
     connection.execute(PLATFORM_SCHEMA)
+    install_scopeguard(connection)
     connection.commit()
 
 
