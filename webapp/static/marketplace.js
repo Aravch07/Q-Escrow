@@ -3,7 +3,6 @@
 const marketFilters={q:'',category:'',view:'open',sort:'newest',offset:0};
 const marketViews={open:'Explore',mine:'My requests',offers:'My offers',saved:'Saved'};
 const marketSorts={newest:'Newest first',budget:'Highest budget',active:'Most offers'};
-const marketIcons={python:'file',java:'file',web:'grid',design:'spark',science:'lab',writing:'file',data:'chart',other:'peer'};
 
 function marketCategories(categories, selected='', all=false){
  return `<option value="">${all?'All categories':'Choose a category'}</option>`+
@@ -21,13 +20,12 @@ async function marketplacePage(id,seller){
  const {categories,category_counts:counts={},requests,next_offset}=await api('marketplace?'+filters);
  const openCount=Object.values(counts).reduce((total,count)=>total+count,0);
  return `<section class="market-hero card">
-  <div><p class="eyebrow">PQ / WORK EXCHANGE</p><h1>Find work. Hire with escrow.</h1>
-  <p>Share a brief, compare private offers, and turn the right match into a signed agreement.</p>
+  <div><p class="eyebrow">Find a project</p><h1>Work board</h1>
+  <p>Browse requests or post a brief for someone to work on.</p>
   <button data-market-compose>＋ Post a request</button></div>
-  <div class="market-hero-art" aria-hidden="true"><img src="/assets/agreement-link.png" alt=""></div>
-  <dl class="market-metrics"><div><dt>Open requests</dt><dd>${openCount}</dd></div><div><dt>Categories</dt><dd>${Object.keys(categories).length}</dd></div><div><dt>Payments</dt><dd>Test ETH</dd></div></dl>
+  <dl class="market-metrics"><div><dt>Open requests</dt><dd>${openCount}</dd></div></dl>
   </section>
-  <section class="card market-post"><details id="market-post-details"><summary>＋ Post a work request</summary>
+  <section class="card market-post" hidden><details id="market-post-details"><summary>Post a work request</summary>
   <form id="market-post" class="market-form"><p class="fine">Any signed-in member can see your open request. Keep files and private details inside the agreement.</p>
   <label for="market-title">Title</label><input id="market-title" name="title" maxlength="120" placeholder="e.g. Build a Python script to clean a CSV" required>
   <div class="form-grid"><div><label for="market-post-category">Category</label><select id="market-post-category" name="category" required>${marketCategories(categories)}</select></div>
@@ -35,7 +33,7 @@ async function marketplacePage(id,seller){
   <label for="market-description">What do you need?</label><textarea id="market-description" name="description" rows="4" maxlength="1200" required></textarea>
   <button type="submit">Publish request</button></form></details></section>
   <nav class="market-tabs" aria-label="Marketplace views">${Object.entries(marketViews).map(([key,label])=>`<button class="secondary" data-market-view="${key}" aria-pressed="${marketFilters.view===key}">${label}</button>`).join('')}</nav>
-  ${marketFilters.view==='open'?`<section class="market-categories" aria-label="Browse work categories">${Object.entries(categories).map(([key,label])=>`<button class="secondary" data-market-category="${key}" aria-pressed="${marketFilters.category===key}"><span class="market-category-icon">${icon(marketIcons[key]||'peer')}</span><strong>${esc(label)}</strong><small>${counts[key]||0} open</small></button>`).join('')}</section>`:''}
+  ${marketFilters.view==='open'?`<section class="market-categories" aria-label="Browse work categories">${Object.entries(categories).map(([key,label])=>`<button class="secondary" data-market-category="${key}" aria-pressed="${marketFilters.category===key}"><strong>${esc(label)}</strong><small>${counts[key]||0} open</small></button>`).join('')}</section>`:''}
   <form class="card market-filters" id="market-search">
   <label for="market-query">Search requests<input id="market-query" name="q" type="search" maxlength="120" value="${esc(marketFilters.q)}" placeholder="Search by skill, work or username"></label>
   <label for="market-category">Category<select id="market-category" name="category">${marketCategories(categories,marketFilters.category,true)}</select></label>
@@ -133,6 +131,7 @@ document.addEventListener('click',async event=>{
  button.disabled=true;
  try{
   if(marketCompose!==undefined){
+   $('.market-post').hidden=false;
    $('#market-post-details').open=true;
    $('#market-title').focus();
   }else if(marketView||marketCategory){

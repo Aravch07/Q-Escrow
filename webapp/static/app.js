@@ -50,8 +50,8 @@ let escrowRecords=[],escrowFilter='all',escrowQuery='';
 function updateEscrowResults(){const filtered=escrowRecords.filter(r=>(escrowFilter==='all'||escrowFilter==='active'&&!['SETTLED','REJECTED','CANCELLED'].includes(r.state)||escrowFilter==='settled'&&r.state==='SETTLED'||escrowFilter==='review'&&r.state==='REJECTED'||escrowFilter==='cancelled'&&r.state==='CANCELLED')&&[r.terms.description,r.terms.buyer.name,r.terms.seller.name,r.escrow_id,eth(r.terms.amount_wei)].join(' ').toLowerCase().includes(escrowQuery.toLowerCase()));$('#escrow-results').innerHTML=escrowTable(filtered,Boolean(escrowQuery||escrowFilter!=='all'));document.querySelectorAll('[data-action="filter"]').forEach(b=>{const selected=b.dataset.filter===escrowFilter;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));});}
 
 function applyTheme(value) { if(value==='device') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=value; localStorage.setItem('pqe-theme',value); }
-if(localStorage.getItem('pqe-design')!=='quantum-3'){localStorage.setItem('pqe-design','quantum-3');applyTheme('dark');}
-else applyTheme(localStorage.getItem('pqe-theme') || 'dark');
+if(localStorage.getItem('pqe-design')!=='studio-1'){localStorage.setItem('pqe-design','studio-1');applyTheme('light');}
+else applyTheme(localStorage.getItem('pqe-theme') || 'light');
 async function api(route, data, options={}) {
   const headers={}; let body;
   if(data!==undefined) { headers['X-Requested-With']='PQEscrow'; if(options.raw){body=data; Object.assign(headers,options.headers||{});}else{headers['Content-Type']='application/json';body=JSON.stringify(data);} }
