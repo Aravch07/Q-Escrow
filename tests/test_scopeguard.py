@@ -40,7 +40,7 @@ def approve(a,b,pid):
 def archive(pages=5):
     output=io.BytesIO()
     with zipfile.ZipFile(output,'w') as z:
-        for i in range(pages):z.writestr(f'page{i}.html','<html><body>login registration contact responsive</body></html>')
+        for i in range(pages):z.writestr(zipfile.ZipInfo(f'page{i}.html',date_time=(2026,1,1,0,0,0)),'<html><body>login registration contact responsive</body></html>')
     return output.getvalue()
 
 
@@ -89,6 +89,7 @@ def test_delivery_release_original_protection_and_replay(site):
     a,b,c,pid=setup(site);approve(a,b,pid)
     assert a.post('scopeguard/'+pid+'/deliver',{})[0]==403
     did=delivery(b,pid)
+    assert next(p for p in a.get('scopeguard')[1]['projects'] if p['id']==pid)['in_review']
     assert a.get('scopeguard/'+pid+'/download/'+did)[0]==403
     assert c.get('scopeguard/'+pid+'/download/'+did)[0]==404
     assert b.get('scopeguard/'+pid+'/download/'+did)[1]==archive()
@@ -99,6 +100,7 @@ def test_delivery_release_original_protection_and_replay(site):
     assert b.get('wallet')[1]['funds']==str(11*ETH)
     assert a.post('scopeguard/'+pid+'/release',{'milestone':'M1','delivery_id':did,'human_reviewed':True})[0]==409
     assert a.get('scopeguard/'+pid)[1]['project']['state']=='completed'
+    assert not next(p for p in a.get('scopeguard')[1]['projects'] if p['id']==pid)['in_review']
 
 
 def test_failed_check_and_mutual_dispute_refund(site):

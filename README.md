@@ -22,7 +22,11 @@ Work marketplace · Protected delivery · Post-quantum signatures
 
 Create editable requirement proposals, sign canonical agreement hashes with ML-DSA-65, detect proposed scope changes, inspect delivery evidence and resolve disagreements through matching approvals. Milestones reserve simulated test ETH from the existing available test wallet. No real money moves.
 
-![ScopeGuard dashboard with clearly labelled local example data](docs/images/scopeguard-dashboard.png)
+![Vault dashboard with local demonstration accounts and simulated test funds](docs/images/scopeguard-dashboard.png)
+
+*Forest and gold vault styling, locally hosted fonts, clear test-fund labels, and an accessible light theme.*
+
+![Ivory and gold light appearance with local demonstration data](docs/images/vault-light.png)
 
 ![Isolated competition demonstration reaching a mutual revision decision](docs/images/scopeguard-demo.png)
 

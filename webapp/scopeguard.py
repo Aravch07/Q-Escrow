@@ -358,6 +358,9 @@ class ScopeGuard:
     def dashboard(self):
         projects=[dict(r) for r in self.db.execute('SELECT * FROM sg_projects WHERE buyer=? OR seller=? ORDER BY created DESC,id',(self.name,self.name))]
         deliveries=[decoded(r,'report') for r in self.db.execute('SELECT d.report FROM sg_deliveries d JOIN sg_projects p ON p.id=d.project WHERE p.buyer=? OR p.seller=?',(self.name,self.name))]
+        paid={(r['project'],r['milestone']) for r in self.db.execute("SELECT t.project,t.milestone FROM sg_payments t JOIN sg_projects p ON p.id=t.project WHERE (p.buyer=? OR p.seller=?) AND t.kind IN ('release','refund','split')",(self.name,self.name))}
+        for p in projects:
+            p['in_review']=p['state']=='active' and any(d['project']==p['id'] and (p['id'],d['milestone']) not in paid for d in deliveries)
         check_counts={status:sum(r['status']==status for d in deliveries for r in d['results']) for status in ('PASSED','FAILED','NEEDS_HUMAN_REVIEW')}
         recent=[decoded(r,'body') for r in self.db.execute('SELECT a.body FROM sg_audit a JOIN sg_projects p ON p.id=a.project WHERE p.buyer=? OR p.seller=? ORDER BY p.created DESC,a.seq DESC LIMIT 8',(self.name,self.name))]
         return {**MODE,'delivery_checks':check_counts,'delivery_count':len(deliveries),'recent':recent,'projects':projects,'stats':{'total':len(projects),'active':sum(p['state']=='active' for p in projects),'completed':sum(p['state']=='completed' for p in projects),'disputed':sum(p['state']=='disputed' for p in projects),'pending':sum(bool(p['pending']) and p['state']!='cancelled' for p in projects),'reserved_wei':str(sum(int(p['locked']) for p in projects))},'wallet_funds':self.app.accounts.user(self.name)['funds']}

@@ -452,6 +452,8 @@ def create_app(database_url=None, session_key=None):
     @app.get("/marketplace.js")
     @app.get("/scopeguard.js")
     @app.get("/scopeguard.css")
+    @app.get("/vault.css")
+    @app.get("/vault.js")
     @app.get("/future.css")
     @app.get("/style.css")
     def static():

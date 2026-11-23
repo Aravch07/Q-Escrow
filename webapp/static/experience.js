@@ -340,4 +340,4 @@ document.addEventListener('pointerover',event=>showChartTooltip(event.target));d
 document.addEventListener('pointerout',event=>{if(event.target.closest('.chart-point'))$('.chart-tooltip')?.setAttribute('hidden','');});
 document.addEventListener('focusout',event=>{if(event.target.closest('.chart-point'))$('.chart-tooltip')?.setAttribute('hidden','');});
 document.addEventListener('keydown',event=>{const point=event.target.closest('.chart-point');if(!point||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const points=[...point.closest('svg').querySelectorAll('.chart-point')];let index=points.indexOf(point);index=event.key==='Home'?0:event.key==='End'?points.length-1:Math.max(0,Math.min(points.length-1,index+(event.key==='ArrowRight'?1:-1)));for(const item of points)item.setAttribute('tabindex','-1');points[index].setAttribute('tabindex','0');points[index].focus();});
-startWorkspace();
+// The final presentation module starts the workspace after all extensions load.

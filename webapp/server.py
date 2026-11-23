@@ -235,6 +235,8 @@ class Handler(BaseHTTPRequestHandler):
                           "/marketplace.js": ("marketplace.js", "text/javascript; charset=utf-8"),
                           "/scopeguard.js": ("scopeguard.js", "text/javascript; charset=utf-8"),
                           "/scopeguard.css": ("scopeguard.css", "text/css; charset=utf-8"),
+                          "/vault.js": ("vault.js", "text/javascript; charset=utf-8"),
+                          "/vault.css": ("vault.css", "text/css; charset=utf-8"),
                           "/future.css": ("future.css", "text/css; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8")}
                 if path.startswith("/assets/"):
@@ -429,6 +431,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Server(ThreadingHTTPServer):
+    request_queue_size = 64
     daemon_threads = True
     allow_reuse_address = os.name != "nt"
 

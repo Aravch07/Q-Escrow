@@ -13,7 +13,7 @@ const base=process.env.PQE_URL||'http://127.0.0.1:8765';
   for(const route of ['scopeguard','scope-create','scope-proof','scope-milestones','scope-resolve','scope-passport','scope-security','scope-profile']){
    console.log('Checking '+route);
    await page.goto(base+'/#'+route);
-   await page.locator('.sg-notice').waitFor();
+   await page.locator(route==='scopeguard'?'.vault-balance-hero':'.sg-notice').waitFor();
    for(const width of [320,390,768,1440]){
     await page.setViewportSize({width,height:1000});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),route+' overflow at '+width);
